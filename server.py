@@ -3,7 +3,7 @@
 """AssetHub 桌面应用后端
 零第三方依赖（纯标准库），提供：
   GET /                    前端仪表盘
-  GET /api/portfolio       实时持仓行情（QClaw 模板 + 腾讯行情，缓存 45s）
+  GET /api/portfolio       实时持仓行情（本地模板 + 腾讯行情，缓存 45s）
   GET /api/news            新浪美股滚动新闻（缓存 5 分钟）
   GET /api/stocknews?code= 东方财富个股新闻检索（缓存 10 分钟）
   GET /api/reports         历史日报列表
@@ -27,11 +27,19 @@ def _load_config():
     return cfg
 
 def _resolve_template():
-    """持仓模板：优先 data/portfolio.json（通用配置/发布场景），回退 QClaw 模板"""
+    """持仓模板：读取应用同目录 data/portfolio.json；
+    缺失时自动从 sample/portfolio.json 复制示例（首次启动自动初始化）"""
     local = os.path.join(ROOT, "data", "portfolio.json")
-    if os.path.exists(local):
-        return local
-    return os.path.expanduser("~/.qclaw/workspace/portfolio_template.json")
+    if not os.path.exists(local):
+        try:
+            sample = os.path.join(ROOT, "sample", "portfolio.json")
+            if os.path.exists(sample):
+                os.makedirs(os.path.dirname(local), exist_ok=True)
+                import shutil
+                shutil.copy(sample, local)
+        except Exception:
+            pass
+    return local
 
 TEMPLATE = _resolve_template()
 REPORTS_DIR = os.path.join(WORKSPACE, "output")
@@ -1644,7 +1652,7 @@ class Handler(BaseHTTPRequestHandler):
                         name = q[code]["name"]
                 except Exception:
                     pass
-                # 读写 QClaw 持仓模板（先备份）
+                # 读写持仓模板（先备份）
                 import shutil
                 with open(TEMPLATE) as fp:
                     tpl = json.load(fp)

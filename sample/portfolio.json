@@ -1,5 +1,5 @@
 {
-  "note": "示例持仓模板：复制为 data/portfolio.json 后填写你自己的持仓；不复制则回退读取 ~/.qclaw/workspace/portfolio_template.json",
+  "note": "示例持仓模板：程序首次启动会自动复制本文件到 data/portfolio.json；编辑 data/portfolio.json 填写你自己的持仓即可",
   "usd_cny_rate": 7.0,
   "cash_usd": 10000,
   "stocks": [
