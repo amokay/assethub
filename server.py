@@ -313,8 +313,11 @@ def fetch_after_hours(tickers, force=False):
     return out
 
 def fetch_quotes(tickers):
-    """美股自动加 us 前缀，A股（sh/sz/bj 前缀）原样请求"""
-    req = [t if t[:2] in ("sh", "sz", "bj") else "us" + t for t in tickers]
+    """美股自动加 us 前缀，A股（sh/sz/bj 前缀）原样请求；
+    过滤非法代码（含非字母数字，如误填的中文名称），避免请求 URL 编码崩溃"""
+    valid = [t for t in tickers
+             if re.match(r"^[A-Za-z0-9]{1,12}$", t or "")]
+    req = [t if t[:2] in ("sh", "sz", "bj") else "us" + t for t in valid]
     url = "https://qt.gtimg.cn/q=" + ",".join(req)
     raw = http_get(url).decode("gbk", "ignore")
     quotes = {}
@@ -1643,6 +1646,10 @@ class Handler(BaseHTTPRequestHandler):
                 cost = float(body.get("cost_per_share") or 0)
                 if not code or shares <= 0 or cost <= 0:
                     self._json({"error": "参数无效"}, 400)
+                    return
+                # 代码合法性：仅允许字母数字（含 sh/sz/bj 前缀），拒绝误填的名称/中文
+                if not re.match(r"^[A-Za-z0-9]{1,12}$", code):
+                    self._json({"error": "代码格式无效（如 NVDA 或 sh600584）"}, 400)
                     return
                 # 查股票名称（腾讯行情）
                 name = code
