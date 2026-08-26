@@ -1422,8 +1422,21 @@ async function submitAddFund() {
   } catch (e) { toast(_t('add_failed') + e.message); }
 }
 
+function autoNormCode(raw) {
+  /* 股票代码智能规范化：6 位纯数字自动补 A 股前缀（6→沪 sh，0/3→深 sz，4/8/9→北交所 bj）；
+     已带 sh/sz/bj 前缀的原样保留（转小写前缀）；其余按美股大写 */
+  const c = (raw || '').trim().toUpperCase();
+  if (/^(SH|SZ|BJ)\d+$/.test(c)) return c.slice(0, 2).toLowerCase() + c.slice(2);
+  if (/^\d{6}$/.test(c)) {
+    if (/^6/.test(c)) return 'sh' + c;
+    if (/^[03]/.test(c)) return 'sz' + c;
+    if (/^[489]/.test(c)) return 'bj' + c;
+  }
+  return c;
+}
+
 async function submitAddStock() {
-  const code = $('m-code').value.trim().toUpperCase();
+  const code = autoNormCode($('m-code').value);
   const shares = parseFloat($('m-shares').value);
   const cost = parseFloat($('m-cost').value);
   if (!code || !shares || shares <= 0 || !cost || cost <= 0) {
