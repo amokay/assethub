@@ -3,7 +3,12 @@
   "usd_cny_rate": 7.0,
   "cash_usd": 10000,
   "stocks": [
-    { "name": "示例股票", "code": "NVDA", "type": "stock", "shares": 100, "cost_per_share": 120.0 }
+    { "name": "英伟达", "code": "NVDA", "type": "stock", "shares": 100, "cost_per_share": 120.0 },
+    { "name": "谷歌", "code": "GOOGL", "type": "stock", "shares": 50, "cost_per_share": 180.0 },
+    { "name": "苹果", "code": "AAPL", "type": "stock", "shares": 100, "cost_per_share": 220.0 },
+    { "name": "长鑫存储", "code": "sh688825", "type": "stock", "shares": 1000, "cost_per_share": 40.0 },
+    { "name": "中际旭创", "code": "sz300308", "type": "stock", "shares": 200, "cost_per_share": 150.0 },
+    { "name": "中微公司", "code": "sh688012", "type": "stock", "shares": 100, "cost_per_share": 180.0 }
   ],
   "options": [],
   "funds": [],
