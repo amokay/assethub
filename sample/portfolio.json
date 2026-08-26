@@ -1,0 +1,11 @@
+{
+  "note": "示例持仓模板：复制为 data/portfolio.json 后填写你自己的持仓；不复制则回退读取 ~/.qclaw/workspace/portfolio_template.json",
+  "usd_cny_rate": 7.0,
+  "cash_usd": 10000,
+  "stocks": [
+    { "name": "示例股票", "code": "NVDA", "type": "stock", "shares": 100, "cost_per_share": 120.0 }
+  ],
+  "options": [],
+  "funds": [],
+  "funds_cny": []
+}

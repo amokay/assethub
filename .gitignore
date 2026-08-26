@@ -1,0 +1,21 @@
+# 本地私有配置与数据（不入库）
+data/
+*.log
+*.bak-*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# 构建产物
+build/
+dist/
+*.spec
+
+# 打包的 .app 与第三方二进制（README 说明构建/下载方式）
+AssetHub.app/
+bin/
+
+# 系统
+.DS_Store
