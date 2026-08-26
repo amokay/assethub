@@ -51,14 +51,12 @@ python3 app.py
 
 ### 配置持仓数据
 
-启动前准备持仓数据（二选一）：
+启动前准备持仓数据：复制示例模板并填入你的持仓
 
-1. **通用方式**：复制示例模板
-   ```bash
-   cp sample/portfolio.json data/portfolio.json
-   # 编辑 data/portfolio.json 填入你的持仓
-   ```
-2. **QClaw 用户**：程序自动回退读取 `~/.qclaw/workspace/portfolio_template.json`（无需额外配置）
+```bash
+cp sample/portfolio.json data/portfolio.json
+# 编辑 data/portfolio.json 填入你的持仓
+```
 
 #### 数据格式
 
@@ -140,14 +138,12 @@ python3 app.py
 
 ### Portfolio Data
 
-Prepare your holdings before first launch (either way):
+Prepare your holdings before first launch by copying the sample template:
 
-1. **General way**: copy the sample template
-   ```bash
-   cp sample/portfolio.json data/portfolio.json
-   # edit data/portfolio.json with your holdings
-   ```
-2. **QClaw users**: falls back to `~/.qclaw/workspace/portfolio_template.json` automatically
+```bash
+cp sample/portfolio.json data/portfolio.json
+# edit data/portfolio.json with your holdings
+```
 
 #### Data Format
 
