@@ -421,7 +421,7 @@
         <h2 data-i18n="stocks">持仓股票</h2>
         <div class="sec-nums" id="stk-nums"></div>
         <span class="spacer"></span>
-        <button class="sec-add" onclick="openAddModal()" data-i18n="add">添加+</button>
+        <button class="sec-add" onclick="openAddModal('us')" data-i18n="add">添加+</button>
       </div>
       <div class="grid" id="cards"></div>
     </section>
@@ -446,9 +446,9 @@
           <h2 data-i18n="stocks">持仓股票</h2>
           <div class="sec-nums" id="cn-stk-nums"></div>
           <span class="spacer"></span>
-          <button class="sec-add" onclick="openAddModal()" data-i18n="add">添加+</button>
-        </div>
-        <div class="grid" id="cards-cn"></div>
+        <button class="sec-add" onclick="openAddModal('cn')" data-i18n="add">添加+</button>
+      </div>
+      <div class="grid" id="cards-cn"></div>
       </section>
 
       <section>
@@ -606,6 +606,8 @@ const I18N = {
     refreshed: '已刷新', added: '已添加', add_failed: '添加失败：', deleted: '已删除', delete_failed: '删除失败：',
     modified: '已修改', modify_failed: '修改失败：', save_failed: '保存失败',
     please_valid: '请填写有效的数量、成本价', please_fund_valid: '请填写基金代码和当前市值',
+    us_only_stock: '美元 tab 只能添加美股，如 NVDA；A股/港股请到人民币 tab 添加',
+    cn_only_cn_hk: '人民币 tab 请填写 A股(sh/sz) 或港股(hk) 代码，如 sh600584 或 hk00700',
     no_news: '暂无新闻', load_failed: '加载失败：', news_us: '美股', news_cn: 'A股',
     today_ret: '今日收益', yday_ret: '昨日收益', no_data: '暂无数据', no_nav: '暂无净值走势',
     kw_none: '相关新闻', search_src: '东方财富检索',
@@ -628,6 +630,8 @@ const I18N = {
     refreshed: 'Refreshed', added: 'Added', add_failed: 'Add failed: ', deleted: 'Deleted', delete_failed: 'Delete failed: ',
     modified: 'Modified', modify_failed: 'Modify failed: ', save_failed: 'Save failed',
     please_valid: 'Please enter valid shares & cost', please_fund_valid: 'Please enter fund code and market value',
+    us_only_stock: 'USD tab: US stocks only, e.g. NVDA. Add A-shares/HK stocks in the CNY tab',
+    cn_only_cn_hk: 'CNY tab: use A-share (sh/sz) or HK (hk) codes, e.g. sh600584 or hk00700',
     no_news: 'No news', load_failed: 'Load failed: ', news_us: 'US', news_cn: 'A-Share',
     today_ret: 'Today', yday_ret: 'Yesterday', no_data: 'No data', no_nav: 'No NAV trend',
     kw_none: 'related news', search_src: 'Eastmoney search',
@@ -1396,7 +1400,17 @@ async function submitEditStock() {
   } catch (e) { toast(_t('modify_failed') + e.message); }
 }
 
-function openAddModal() { $('add-modal').style.display = 'flex'; }
+let addStockMarket = 'us';   // 添加股票的目标市场：us=仅美股 / cn=A股+港股
+
+function openAddModal(market) {
+  addStockMarket = market || 'us';
+  const ph = addStockMarket === 'cn'
+    ? '如 sh600584 或 hk00700'
+    : '如 NVDA 或 AAPL';
+  const codeInput = $('m-code');
+  codeInput.placeholder = ph;
+  $('add-modal').style.display = 'flex';
+}
 function closeAddModal() { $('add-modal').style.display = 'none'; }
 
 let fundMarket = 'us';   // 添加基金的目标市场：us=美元基金(模板 funds) / cn=人民币基金(funds_cny)
@@ -1441,6 +1455,16 @@ async function submitAddStock() {
   const cost = parseFloat($('m-cost').value);
   if (!code || !shares || shares <= 0 || !cost || cost <= 0) {
     toast(_t('please_valid'));
+    return;
+  }
+  // 市场归属校验：us 仅美股（无前缀）；cn 仅 A股/港股（带 sh/sz/bj/hk 前缀）
+  const hasPrefix = /^(sh|sz|bj|hk)/.test(code);
+  if (addStockMarket === 'us' && hasPrefix) {
+    toast(_t('us_only_stock'));
+    return;
+  }
+  if (addStockMarket === 'cn' && !hasPrefix) {
+    toast(_t('cn_only_cn_hk'));
     return;
   }
   try {

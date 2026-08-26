@@ -96,9 +96,9 @@ _cache = {}
 _lock = threading.Lock()
 
 def norm_code(code):
-    """股票代码规范化：A股(sh/sz/bj 前缀)小写前缀+数字，美股大写"""
+    """股票代码规范化：A股(sh/sz/bj 前缀)与港股(hk 前缀)保留小写前缀+数字，美股大写"""
     code = (code or "").strip()
-    if code[:2].lower() in ("sh", "sz", "bj"):
+    if code[:2].lower() in ("sh", "sz", "bj", "hk"):
         return code[:2].lower() + code[2:]
     return code.upper()
 
@@ -317,7 +317,7 @@ def fetch_quotes(tickers):
     过滤非法代码（含非字母数字，如误填的中文名称），避免请求 URL 编码崩溃"""
     valid = [t for t in tickers
              if re.match(r"^[A-Za-z0-9]{1,12}$", t or "")]
-    req = [t if t[:2] in ("sh", "sz", "bj") else "us" + t for t in valid]
+    req = [t if t[:2] in ("sh", "sz", "bj", "hk") else "us" + t for t in valid]
     url = "https://qt.gtimg.cn/q=" + ",".join(req)
     raw = http_get(url).decode("gbk", "ignore")
     quotes = {}
@@ -351,7 +351,7 @@ def get_portfolio_meta():
         agg_us, agg_cn, order_us, order_cn = {}, {}, [], []
 
         def is_cn(c):
-            return c[:2] in ("sh", "sz", "bj")
+            return c[:2] in ("sh", "sz", "bj", "hk")
 
         for s in tpl.get("stocks", []):
             c = s["code"]
@@ -394,7 +394,7 @@ def get_portfolio(force=False):
         agg_us, agg_cn, order_us, order_cn = {}, {}, [], []
 
         def is_cn(c):
-            return c[:2] in ("sh", "sz", "bj")
+            return c[:2] in ("sh", "sz", "bj", "hk")
 
         for s in tpl.get("stocks", []):
             c = s["code"]
@@ -418,7 +418,7 @@ def get_portfolio(force=False):
         in_after = weekday_et < 5 and datetime.time(16, 0) <= hour_et <= datetime.time(20, 0)
 
         def is_cn_code(c):
-            return c[:2] in ("sh", "sz", "bj")
+            return c[:2] in ("sh", "sz", "bj", "hk")
 
         def cn_session():
             """A股时段：9:30-11:30 / 13:00-15:00 盘中，其余已收盘（按北京时间）"""
@@ -1087,7 +1087,7 @@ def get_stock_klines():
         out = {}
 
         def is_cn(c):
-            return c[:2] in ("sh", "sz", "bj")
+            return c[:2] in ("sh", "sz", "bj", "hk")
 
         def one(c):
             try:
