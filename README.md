@@ -1,31 +1,44 @@
 # AssetHub
 
-个人资产监控桌面应用（macOS）——聚合股票 / 基金 / 现金资产，实时行情、K 线走势、新闻推送、涨跌异动提醒，中英文界面。
+> 一个界面，看清你全部的家底。**股票、基金、现金，一键汇总。**
 
-基于 `pywebview` + 零第三方依赖的 Python 后端 + 原生前端，纯本地运行（无需自建服务器）。
+同时炒美股和 A 股、在好几个券商开户、还买了场外基金？每天想看一眼"我今天到底赚了多少"，是不是要打开三四个 App，对着不同货币、不同盈亏来回换算？
 
-## 功能
+**AssetHub 就是来解决这个麻烦的。** 它把分散在各处的资产聚到同一个本地界面——总资产、总盈亏、当日变动一眼看清，行情自动刷新，重大新闻和异动直接推送到系统通知，不用你天天盯盘。
 
-- **资产总览**：总资产 / 总浮盈 / 当日盈亏，美元 / 人民币双视图
-- **实时行情**：美股 + A股持仓逐股报价（盘前 / 盘中 / 盘后全时段），30s 自动刷新
-- **走势图**：股票卡片 hover 分时走势、基金净值走势、市场指标（纳指 / 黄金 / 原油 / 比特币等）
-- **新闻中心**：美股 / A股 / 持仓代码 / 领域分类标签，点击重拉；5 分钟自动刷新
-- **系统通知**：重大新闻推送、个股涨跌幅阶梯提醒（3% / 5% / 10% / 15%…，带情境标题：急速上涨 / 高位回落等）
-- **中英双语**：顶部语言切换，全站文案 + 股票 / 基金名 + 投资偏好翻译
-- **手动管理**：添加 / 修改 / 删除股票与基金（数据落本地 JSON，自动备份）
+- 🔒 **纯本地运行**：数据存在你自己的电脑里，不经过任何服务器
+- 🇨🇳🇺🇸 **中英双语**：界面、股票名、基金名一键切换
+
+## 核心亮点
+
+| | 解决什么 |
+|---|---|
+| 📊 **一屏总览** | 美股 + A股 + 美元/人民币基金 + 现金，总资产 / 总浮盈 / 当日盈亏双货币视图 |
+| 📈 **实时行情** | 逐股报价覆盖盘前 / 盘中 / 盘后全时段，30 秒自动刷新，hover 卡片看分时走势 |
+| 🔔 **智能提醒** | 持仓涨跌幅到 3% / 5% / 10% / 15%… 自动弹通知，标题自动识别"急速上涨 / 高位回落"等形态 |
+| 📰 **新闻中心** | 美股 / A股 / 持仓个股 / 行业领域标签分类，重要新闻自动推送 |
+| 🗂️ **手动管理** | 添加 / 修改 / 删除股票与基金，数据落本地 JSON 并自动备份 |
+| 🌏 **多市场指标** | 纳指 / 黄金 / 原油 / 比特币 / 美债 + 上证 / 创业板 / 恒生 / 日经 / 韩国指数 |
+
+## 快速开始
+
+```bash
+# 1. 安装依赖
+pip install pywebview pyobjc-framework-Cocoa pyobjc-framework-WebKit pyobjc-framework-Quartz pyobjc-framework-UserNotifications requests
+
+# 2. 准备持仓数据（复制示例模板，填入你的持仓）
+cp sample/portfolio.json data/portfolio.json
+
+# 3. 启动
+python3 app.py
+```
+
+> 系统通知需要 `terminal-notifier`（[GitHub 下载](https://github.com/julienXX/terminal-notifier/releases) v2.0.0，放到 `bin/terminal-notifier.app`）。
 
 ## 环境要求
 
-- macOS（通知、图标依赖系统 WebKit / 通知中心）
-- Python 3.9+，依赖：`pywebview`、`pyobjc`、`requests`
-- 系统通知需要 `terminal-notifier`（[GitHub 下载](https://github.com/julienXX/terminal-notifier/releases) v2.0.0，放到 `bin/terminal-notifier.app`）
-
-## 安装与运行
-
-```bash
-pip install pywebview pyobjc-framework-Cocoa pyobjc-framework-WebKit pyobjc-framework-Quartz pyobjc-framework-UserNotifications requests
-python3 app.py
-```
+- macOS（通知、Dock 图标依赖系统 WebKit / 通知中心）
+- Python 3.9+
 
 ## 配置持仓数据
 
