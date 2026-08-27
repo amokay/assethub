@@ -968,11 +968,18 @@ async function loadPortfolioMeta() {
 
 /* 股票K线数据：hover 渐现用；数据到齐后填充各卡片底部 */
 let stockKlines = null;
+let lastKlineAt = 0;
 async function loadKlines() {
+  lastKlineAt = Date.now();
   try {
     stockKlines = await api('/api/kline');
     fillKlines();
   } catch (e) { /* kline 失败不阻塞 */ }
+}
+/* K 线节流刷新：跟随 30s 行情刷新节奏，但 60s 才真正拉一次（美股构建较重，避免频繁请求） */
+function refreshKlinesIfStale() {
+  if (Date.now() - lastKlineAt < 60000) return;
+  loadKlines();
 }
 function fillKlines() {
   if (!stockKlines) return;
@@ -1736,6 +1743,7 @@ tickerWrap.addEventListener('mouseenter', () => { tickerPaused = true; });
 tickerWrap.addEventListener('mouseleave', () => { tickerPaused = false; tickerLastTs = 0; });
 window.addEventListener('resize', moveMtabSlider);
 setInterval(loadPortfolio, 30000);   // 行情 30 秒自动刷新
+setInterval(refreshKlinesIfStale, 30000);  // K 线跟随刷新（内部 60s 节流）
 setInterval(loadMarkets, 30000);     // 核心指标同步刷新
 setInterval(loadPreference, 86400000);  // 投资偏好每日刷新（行业占比变化不大）
 setInterval(loadTicker, 300000);      // 滚动新闻 5 分钟更新

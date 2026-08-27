@@ -1203,7 +1203,7 @@ def get_stock_klines():
                 if data:
                     out[c] = data
         return out
-    return cache_get("stock_klines", 120, build)
+    return cache_get("stock_klines", 60, build)
 
 # ---------- 重要新闻推送（macOS 系统通知） ----------
 # 重大行情关键词：命中即视为重要新闻（含"持仓相关"的新闻自动重要）
