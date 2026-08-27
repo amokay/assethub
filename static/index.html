@@ -609,7 +609,7 @@ const I18N = {
     us_only_stock: '美元 tab 只能添加美股，如 NVDA；A股/港股请到人民币 tab 添加',
     cn_only_cn_hk: '人民币 tab 请填写 A股(sh/sz) 或港股(hk) 代码，如 sh600584 或 hk00700',
     no_news: '暂无新闻', load_failed: '加载失败：', news_us: '美股', news_cn: 'A股',
-    today_ret: '今日收益', yday_ret: '昨日收益', no_data: '暂无数据', no_nav: '暂无净值走势',
+    today_ret: '今日收益', yday_ret: '昨日收益', nav_ret: '收益', no_data: '暂无数据', no_nav: '暂无净值走势',
     kw_none: '相关新闻', search_src: '东方财富检索',
     otc_fund: '场外基金 ｜ 净值滞后', cny_fund: '人民币基金 ｜ 净值滞后', total_ret: '总收益', today: '当日',
     fail_quote: '行情加载失败：',
@@ -633,7 +633,7 @@ const I18N = {
     us_only_stock: 'USD tab: US stocks only, e.g. NVDA. Add A-shares/HK stocks in the CNY tab',
     cn_only_cn_hk: 'CNY tab: use A-share (sh/sz) or HK (hk) codes, e.g. sh600584 or hk00700',
     no_news: 'No news', load_failed: 'Load failed: ', news_us: 'US', news_cn: 'A-Share',
-    today_ret: 'Today', yday_ret: 'Yesterday', no_data: 'No data', no_nav: 'No NAV trend',
+    today_ret: 'Today', yday_ret: 'Yesterday', nav_ret: 'ret', no_data: 'No data', no_nav: 'No NAV trend',
     kw_none: 'related news', search_src: 'Eastmoney search',
     otc_fund: 'OTC Fund ｜ NAV lag', cny_fund: 'CNY Fund ｜ NAV lag', total_ret: 'Total', today: 'Today',
     fail_quote: 'Quote load failed: ',
@@ -1270,7 +1270,13 @@ function renderFunds() {
         dayRet = (last / prev - 1) * 100;
         const lastDate = (f.nav_dates || [])[f.nav_dates.length - 1] || '';
         const today = new Date().toISOString().slice(0, 10);
-        dayLabel = lastDate === today ? _t('today_ret') : _t('yday_ret');
+        if (lastDate === today) dayLabel = _t('today_ret');
+        else {
+          // 净值滞后（QDII 等）超过 1 天：标签显示净值实际日期，避免误称"昨日"
+          const diffDays = (new Date(today) - new Date(lastDate)) / 86400000;
+          dayLabel = (Number.isFinite(diffDays) && diffDays <= 1)
+            ? _t('yday_ret') : (lastDate.slice(5) + ' ' + _t('nav_ret'));
+        }
       }
     }
     // 隐私模式：市值打码，涨跌只保留比例
@@ -1319,7 +1325,13 @@ function renderFundsCn() {
         dayRet = (last / prev - 1) * 100;
         const lastDate = (f.nav_dates || [])[f.nav_dates.length - 1] || '';
         const today = new Date().toISOString().slice(0, 10);
-        dayLabel = lastDate === today ? _t('today_ret') : _t('yday_ret');
+        if (lastDate === today) dayLabel = _t('today_ret');
+        else {
+          // 净值滞后（QDII 等）超过 1 天：标签显示净值实际日期，避免误称"昨日"
+          const diffDays = (new Date(today) - new Date(lastDate)) / 86400000;
+          dayLabel = (Number.isFinite(diffDays) && diffDays <= 1)
+            ? _t('yday_ret') : (lastDate.slice(5) + ' ' + _t('nav_ret'));
+        }
       }
     }
     const priceTxt = hideSec ? '****' : fmtCny(f.market_value);

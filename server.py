@@ -524,12 +524,15 @@ def get_portfolio(force=False):
         # 人民币基金（场外基金，按最近记录市值/收益率计价 + 天天基金真实净值走势）
         funds_cny_out = []
         for f in funds_cny:
+            mv0 = f.get("market_value", 0) or 0
+            cost0 = f.get("cost", 0) or 0
             fc = {"name": f.get("name", ""), "code": f.get("code", ""),
-                  "market_value": f.get("market_value", 0),
-                  "cost": f.get("cost", 0),
+                  "market_value": mv0,
+                  "cost": cost0,
                   "cost_per_nav": f.get("cost_per_nav", 0),
-                  "yield_pct": f.get("yield_pct", 0),
-                  "pnl": f.get("market_value", 0) - f.get("cost", 0)}
+                  # 收益率实时计算（模板静态 yield_pct 会随成本/市值变化失真）
+                  "yield_pct": round((mv0 - cost0) / cost0 * 100, 2) if cost0 > 0 else 0.0,
+                  "pnl": mv0 - cost0}
             nav = fetch_cn_fund_nav(f.get("code", ""))
             fc["spark"] = nav["values"]
             fc["nav_dates"] = nav["dates"]
