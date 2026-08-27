@@ -575,6 +575,7 @@
 <script>
 const $ = id => document.getElementById(id);
 const fmt = v => v.toLocaleString('en-US', {minimumFractionDigits: v % 1 === 0 ? 0 : 2, maximumFractionDigits: 2});
+const fmt3 = v => v.toLocaleString('en-US', {minimumFractionDigits: v % 1 === 0 ? 0 : 3, maximumFractionDigits: 3});  // A股价格：精确到 3 位
 const fmtMoney = v => (v < 0 ? '-' : '') + '$' + fmt(Math.abs(v));
 const fmtMoneyS = v => (v < 0 ? '-' : '+') + '$' + fmt(Math.abs(v));
 const fmtNoSym = v => (v < 0 ? '-' : '') + fmt(Math.abs(v));       // 无货币符号（股票卡片用）
@@ -745,7 +746,7 @@ function renderSummaryCn(t) {
           <div class="top"><span class="icon session">${sessTxt(s.session.text)}</span></div>
           <div class="code">${codeDisp}</div>
           <div class="name">${stkName(s)}</div>
-          <div class="price ${c}" data-flip="${s.code}" data-px="${fmt(s.price)}">${fmt(s.price)}</div>
+          <div class="price ${c}" data-flip="${s.code}" data-px="${fmt3(s.price)}">${fmt3(s.price)}</div>
           <div class="change ${c}">
             <span>${s.chg >= 0 ? '+' : '-'} ${fmtNoSym(Math.abs(s.chg))} (${fmtPct(s.chg_pct)})</span>
           </div>
