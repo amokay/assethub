@@ -1229,6 +1229,26 @@ function applyPriceFlips() {
 let hideSec = false;
 function secVal(v) { return hideSec ? '****' : v; }
 
+/* 基金日收益汇总：净值最后两点涨幅 × 市值求和；返回 {sum, lastDate}（无净值数据 lastDate=''） */
+function fundsDaySummary(funds) {
+  let sum = 0, lastDate = '';
+  for (const f of (funds || [])) {
+    const sp = f.spark;
+    if (sp && sp.length > 1 && sp[sp.length - 2] > 0) {
+      sum += (sp[sp.length - 1] / sp[sp.length - 2] - 1) * (f.market_value || 0);
+      const d = (f.nav_dates || [])[f.nav_dates.length - 1] || '';
+      if (d && d > lastDate) lastDate = d;
+    }
+  }
+  return { sum, lastDate };
+}
+/* 基金标题日收益标签：净值日期=今天→"当日"；滞后（当日取不到）→"昨日收益"；无数据→"当日 —" */
+function fundsDayLabel(summary) {
+  if (!summary.lastDate) return { label: _t('today'), has: false };
+  const today = new Date().toISOString().slice(0, 10);
+  return { label: summary.lastDate === today ? _t('today') : _t('yday_ret'), has: true };
+}
+
 function renderSectionNums() {
   const st = portfolio.stock_total;
   const fundMv = (portfolio.funds || []).reduce((s, f) => s + f.market_value, 0);
@@ -1236,10 +1256,12 @@ function renderSectionNums() {
     <span class="num">${_t('total_mv')} ${secVal(fmtMoney(st.mv))}</span>
     <span class="sep">|</span>
     <span class="num ${hideSec ? '' : cls(st.day_pnl)}">当日 ${secVal(fmtMoneyS(st.day_pnl))}</span>`;
+  const fd = fundsDaySummary(portfolio.funds);
+  const fdl = fundsDayLabel(fd);
   $('fund-nums').innerHTML = `
     <span class="num">${_t('total_mv')} ${secVal(fmtMoney(fundMv))}</span>
     <span class="sep">|</span>
-    <span class="num">${_t('today')} —</span>`;
+    <span class="num ${hideSec ? '' : cls(fd.sum)}">${fdl.label} ${fdl.has ? secVal(fmtMoneyS(fd.sum)) : '—'}</span>`;
 }
 
 function toggleSecNums() {
@@ -1306,9 +1328,12 @@ function renderFunds() {
 function renderFundsCn() {
   const cfs = portfolio.funds_cny || [];
   const totalMv = cfs.reduce((s, f) => s + f.market_value, 0);
+  const fdc = fundsDaySummary(cfs);
+  const fdcl = fundsDayLabel(fdc);
   $('cn-fund-nums').innerHTML = cfs.length
     ? `<span class="num">${_t('total_mv')} ${hideSec ? '****' : fmtCny(totalMv)}</span>
-       <span class="sep">|</span><span class="num">${_t('today')} —</span>`
+       <span class="sep">|</span>
+       <span class="num ${hideSec ? '' : cls(fdc.sum)}">${fdcl.label} ${fdcl.has ? (hideSec ? '****' : fmtCnyS(fdc.sum)) : '—'}</span>`
     : '';
   $('cards-funds-cn').innerHTML = cfs.map(f => {
     const c = cls(f.pnl);
