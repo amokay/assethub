@@ -1137,18 +1137,29 @@ def get_stock_klines():
                             chart = (d.get("data") or {}).get("chart") or []
                             if chart:
                                 break
-                        # 按当前美东时段过滤：盘中/盘后取 9:30 开盘后的分时；盘前/凌晨取 4:00 起的盘前分时
+                        # 按当前美东时段过滤：盘中/盘后取 9:30 开盘后的分时；盘前取 4:00 起；凌晨(0:00-4:00)取昨日盘中分时
                         if cur >= _dt.time(9, 30):
                             start_ts = int(et.replace(hour=9, minute=30, second=0, microsecond=0).timestamp() * 1000)
                             denom = 390.0
-                        else:
+                        elif cur >= _dt.time(4, 0):
                             start_ts = int(et.replace(hour=4, minute=0, second=0, microsecond=0).timestamp() * 1000)
                             denom = 330.0
+                        else:
+                            # 凌晨：Nasdaq 返回的是上一交易日数据，取昨日 9:30 起的盘中分时（终点昨日 20:00 盘后）
+                            yday = et - _dt.timedelta(days=1)
+                            start_ts = int(yday.replace(hour=9, minute=30, second=0, microsecond=0).timestamp() * 1000)
+                            denom = 390.0
                         # 按分钟网格补全 start_ts→当前：所有美股同一时间轴（起始/结束/进度一致）
                         rows_ts = [(row.get("x", 0), float(row["y"])) for row in chart
                                    if row.get("x", 0) >= start_ts and row.get("y")]
                         now_ts = int(et.timestamp() * 1000)
-                        pts = _fill_minutes_ts(rows_ts, start_ts, now_ts)
+                        # 凌晨时段终点取昨日 20:00（含盘后），避免未来时间戳造成尾部超长平线
+                        if cur < _dt.time(4, 0):
+                            end_ts = min(now_ts, int((et - _dt.timedelta(days=1)).replace(
+                                hour=20, minute=0, second=0, microsecond=0).timestamp() * 1000))
+                        else:
+                            end_ts = now_ts
+                        pts = _fill_minutes_ts(rows_ts, start_ts, end_ts)
                     except Exception:
                         pts = []
                     if not pts:
@@ -1171,7 +1182,7 @@ def get_stock_klines():
                             pts = []
                     if pts:
                         # 备用东财兜底的数据无时段概念（东财 trends2 从 21:30 起），统一按分母估算进度
-                        dnm = 390.0 if cur >= _dt.time(9, 30) else 330.0
+                        dnm = 330.0 if _dt.time(4, 0) <= cur < _dt.time(9, 30) else 390.0
                         return (c, {"pts": pts, "progress": _session_progress("us")})
             except Exception:
                 pass
