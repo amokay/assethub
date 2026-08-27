@@ -453,7 +453,8 @@ def get_portfolio(force=False):
                         if ah0 and ah0.get("prev"):
                             prev_close = ah0["prev"]
                     sess = session_of(q["ts"])
-                    # 美股扩展时段：盘中用腾讯实时，盘前/盘后用 Nasdaq 官方（或新浪）最新价
+                    # 美股扩展时段：盘中用腾讯实时；盘前/盘后/夜盘(闭市)用 Nasdaq 官方
+                    # （或新浪）扩展时段最新价（如财报后盘后大涨，夜盘时段持续显示该价）
                     if not in_regular and c in after_hours:
                         ah = after_hours[c]
                         if ah["price"] > 0 and abs(ah["price"] - price) / price < 0.3:
@@ -466,6 +467,9 @@ def get_portfolio(force=False):
                                 sess = {"key": "after", "text": "盘后", "icon": ""}
                             else:
                                 sess = {"key": "night", "text": "夜盘", "icon": ""}
+                    # 闭市时段(20:00-4:00)标签统一显示"夜盘"（价格仍为最新盘后/扩展价）
+                    if not (in_pre or in_regular or in_after):
+                        sess = {"key": "night", "text": "夜盘", "icon": ""}
                 mv_i = a["shares"] * price
                 d_i = a["shares"] * (price - prev_close)
                 dp = (price - prev_close) / prev_close * 100
