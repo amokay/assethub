@@ -210,7 +210,7 @@
   .card .code { font-size: 18px; font-weight: 700; letter-spacing: .3px; margin-bottom: 2px;
                 color: #fff; }
   .card .name { font-size: 12px; color: var(--muted); margin-top: 1px; margin-bottom: 10px; }
-  .card .price { font-size: clamp(20px, 2.6vw, 30px); font-weight: 700; letter-spacing: -.5px;
+  .card .price { font-size: clamp(20px, 2.6vw, 30px); font-weight: 700;
                  font-variant-numeric: tabular-nums; }
 
   /* 基金卡片市值：白色 + 字号略小（股票卡片价格不受影响） */
@@ -219,13 +219,17 @@
     font-size: clamp(18px, 2.3vw, 26px);
   }
 
-  /* 价格数字计数器滚轮：每位数字是 0-9 循环滚轮，滚动经过中间数字到达目标位 */
+  /* 价格数字计数器滚轮：每位数字是 0-9 循环滚轮，滚动经过中间数字到达目标位。
+     width 用 1ch（数字"0"宽度）：tabular-nums 下数字等宽，与 txt-view 真实价格宽度一致，
+     避免刷新前后（占位滚轮 vs 真实价）字体/字号视觉不一致 */
   .od { display: inline-block; position: relative; overflow: hidden; height: 1em;
-        width: .62em; line-height: 1em; vertical-align: bottom; text-align: center; }
-  .od .strip { position: absolute; top: 0; left: 0; width: .62em;
+        width: 1ch; line-height: 1em; vertical-align: bottom; text-align: center; }
+  .od .strip { position: absolute; top: 0; left: 0; width: 1ch;
                transition: transform .45s cubic-bezier(.25,.6,.3,1); }
-  .od .strip span { display: block; height: 1em; width: .62em; line-height: 1em; text-align: center; }
-  .od .lit { display: block; height: 1em; width: .62em; line-height: 1em; }
+  .od .strip span { display: block; height: 1em; width: 1ch; line-height: 1em; text-align: center; }
+  .od .lit { display: block; height: 1em; width: 1ch; line-height: 1em; }
+  .od.sym { width: auto; }
+  .od.sym .lit { width: auto; }
   .card .change { font-size: 12px; margin-top: 4px; display: flex; align-items: center; gap: 6px; }
   .card .change .session { font-size: 11px; color: var(--muted); }
 
@@ -1199,8 +1203,8 @@ function applyPriceFlips() {
         // 新增位（占位→价格）：直接生成滚轮，稍后从下方滚入
         html += odDigit(null, parseInt(ch));
       } else {
-        // 数字没变 / 符号位：静止显示
-        html += `<span class="od"><span class="lit">${ch}</span></span>`;
+        // 数字没变 / 符号位：静止显示（符号位宽度自适应，避免小数点等占满格宽）
+        html += `<span class="od sym"><span class="lit">${ch}</span></span>`;
       }
     }
     el.innerHTML = `<span class="od-view">${html}</span><span class="txt-view">${text}</span>`;
