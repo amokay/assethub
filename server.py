@@ -516,6 +516,12 @@ def get_portfolio(force=False):
                   "market_value": f.get("market_value", 0),
                   "cost": f.get("cost", 0),
                   "pnl": f.get("market_value", 0) - f.get("cost", 0)}
+            # 净值日涨幅（手动维护 nav_hist：{date: nav}，用于精确的"今日收益"）
+            nh = f.get("nav_hist") or {}
+            nh_dates = sorted(nh.keys())
+            if len(nh_dates) >= 2:
+                fd["day_pct"] = round((nh[nh_dates[-1]] / nh[nh_dates[-2]] - 1) * 100, 3)
+                fd["nav_date"] = nh_dates[-1]
             for b in FUND_BENCH:
                 if b[0] in f.get("name", ""):
                     bsp = fetch_bench_spark(b[2], b[3])

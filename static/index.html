@@ -1298,7 +1298,18 @@ function renderFunds() {
       ? sparkSvg(f.spark, undefined, undefined, fDir) : '<div class="empty">' + _t('no_nav') + '</div>';
     // 今日收益：最后两点涨幅；最后日期非今天 → 显示为昨日收益
     let dayRet = null, dayLabel = '';
-    if (f.spark && f.spark.length > 1) {
+    if (f.day_pct !== undefined && f.day_pct !== null) {
+      // 手动维护的净值日涨幅（精确）；无则回退下方基准指数近似
+      dayRet = f.day_pct;
+      const lastDate = f.nav_date || '';
+      const today = new Date().toISOString().slice(0, 10);
+      if (lastDate === today) dayLabel = _t('today_ret');
+      else {
+        const diffDays = (new Date(today) - new Date(lastDate)) / 86400000;
+        dayLabel = (Number.isFinite(diffDays) && diffDays <= 1)
+          ? _t('yday_ret') : (lastDate.slice(5) + ' ' + _t('nav_ret'));
+      }
+    } else if (f.spark && f.spark.length > 1) {
       const last = f.spark[f.spark.length - 1], prev = f.spark[f.spark.length - 2];
       if (prev > 0) {
         dayRet = (last / prev - 1) * 100;
@@ -1356,7 +1367,18 @@ function renderFundsCn() {
       ? sparkSvg(f.spark, undefined, undefined, fDir) : '<div class="empty">' + _t('no_nav') + '</div>';
     // 今日收益：最后两点涨幅；最后日期非今天 → 显示为昨日收益
     let dayRet = null, dayLabel = '';
-    if (f.spark && f.spark.length > 1) {
+    if (f.day_pct !== undefined && f.day_pct !== null) {
+      // 手动维护的净值日涨幅（精确）；无则回退下方基准指数近似
+      dayRet = f.day_pct;
+      const lastDate = f.nav_date || '';
+      const today = new Date().toISOString().slice(0, 10);
+      if (lastDate === today) dayLabel = _t('today_ret');
+      else {
+        const diffDays = (new Date(today) - new Date(lastDate)) / 86400000;
+        dayLabel = (Number.isFinite(diffDays) && diffDays <= 1)
+          ? _t('yday_ret') : (lastDate.slice(5) + ' ' + _t('nav_ret'));
+      }
+    } else if (f.spark && f.spark.length > 1) {
       const last = f.spark[f.spark.length - 1], prev = f.spark[f.spark.length - 2];
       if (prev > 0) {
         dayRet = (last / prev - 1) * 100;
