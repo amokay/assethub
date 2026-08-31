@@ -1328,7 +1328,7 @@ function renderFunds() {
     const priceTxt = hideSec ? '****' : fmtMoney(f.market_value);
     const chgTxt = hideSec ? fmtPct(pct) : `${f.pnl >= 0 ? '+' : '-'} ${fmtMoney(Math.abs(f.pnl))} (${fmtPct(pct)})`;
     // 昨日/今日收益带金额：如「昨日收益 +1288（+1.2%）」（金额≈市值×日涨幅）
-    const dayAmt = dayRet !== null ? f.market_value * dayRet / 100 : 0;
+    const dayAmt = dayRet !== null ? f.market_value * dayRet / (100 + dayRet) : 0;  // 日收益按昨日市值算: mv/(1+r)*r
     const dayTxt = dayRet !== null
       ? `${dayLabel} ${hideSec ? fmtPct(dayRet)
           : `${dayRet >= 0 ? '+' : '-'}${fmtNoSym(Math.abs(dayAmt))}（${fmtPct(dayRet)}）`}` : '';
@@ -1396,7 +1396,7 @@ function renderFundsCn() {
     const priceTxt = hideSec ? '****' : fmtCny(f.market_value);
     const chgTxt = hideSec ? fmtPct(pct) : `${f.pnl >= 0 ? '+' : '-'} ${fmtCny(Math.abs(f.pnl))} (${fmtPct(pct)})`;
     // 昨日/今日收益带金额：如「昨日收益 +1288（+1.2%）」（金额≈市值×日涨幅）
-    const dayAmt = dayRet !== null ? f.market_value * dayRet / 100 : 0;
+    const dayAmt = dayRet !== null ? f.market_value * dayRet / (100 + dayRet) : 0;  // 日收益按昨日市值算: mv/(1+r)*r
     const dayTxt = dayRet !== null
       ? `${dayLabel} ${hideSec ? fmtPct(dayRet)
           : `${dayRet >= 0 ? '+' : '-'}${fmtNoSym(Math.abs(dayAmt))}（${fmtPct(dayRet)}）`}` : '';
