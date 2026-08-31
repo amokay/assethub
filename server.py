@@ -274,32 +274,33 @@ def fetch_after_hours(tickers, force=False):
     if not us:
         return {}
 
-    # 1. 快路径：新浪批量请求（1 次 HTTP），毫秒级返回
+    # 1. 快路径：新浪批量请求（1 次 HTTP），毫秒级返回；
+    #    新浪 f21 按时段区分盘前/盘后价（更准），优先采用
     out = _fetch_sina_after_hours(us)
 
-    # 2. Nasdaq：缓存新鲜（<45s）直接用；过期仍优先旧缓存（比新浪可靠），后台刷新；
-    #    手动刷新（force）同步等待最新
+    # 2. Nasdaq 兜底：仅填充新浪未返回的代码（Nasdaq 扩展时段 API 盘前早期
+    #    可能返回未更新的旧价，如 NTAP 187.0 vs 新浪 189.67）
     import time as _time
     cached = _nasdaq_cache.get("data", {})
     stale = _time.time() - _nasdaq_cache.get("ts", 0) > 45
     if cached and not stale and not force:
         for t, v in cached.items():
-            out[t] = v
+            out.setdefault(t, v)
     elif force:
-        # 手动刷新：同步等待 Nasdaq 最新（覆盖滞后新浪数据）
+        # 手动刷新：同步等待 Nasdaq 最新（仅补缺）
         try:
             nq = _fetch_nasdaq_after_hours(us)
             if nq:
                 _nasdaq_cache["data"] = nq
                 _nasdaq_cache["ts"] = _time.time()
                 for t, v in nq.items():
-                    out[t] = v
+                    out.setdefault(t, v)
         except Exception:
             pass
     else:
-        # 缓存过期：先用旧 Nasdaq 缓存（比新浪差异小），后台异步刷新
+        # 缓存过期：先用旧 Nasdaq 缓存补缺，后台异步刷新
         for t, v in cached.items():
-            out[t] = v
+            out.setdefault(t, v)
         def _update():
             try:
                 nq = _fetch_nasdaq_after_hours(us)
