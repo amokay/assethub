@@ -445,10 +445,10 @@ def get_portfolio(force=False):
                     # A股：只有 盘中 / 已收盘 两种状态
                     sess = cn_session()
                 else:
-                    # 美股昨收：盘中信任腾讯 f4（可靠）；盘前/盘后/夜盘用扩展时段基准
-                    # （Nasdaq 官方 prev 优先，新浪 f1=最近收盘兜底）——腾讯 f4 在扩展时段
-                    # 仍是上个交易日收盘，会让盘前涨跌算错
-                    if not in_regular:
+                    # 美股昨收：盘中/盘后/夜盘用腾讯 f4（=最近交易日的昨收，显示当日真实涨跌）；
+                    # 仅盘前时段切换到"最近收盘"（新浪 f1/Nasdaq prev）作昨收基准，
+                    # 因为此时腾讯 f4 仍是上一交易日的昨收，盘前涨跌应相对最近收盘算
+                    if in_pre:
                         ah0 = after_hours.get(c)
                         if ah0 and ah0.get("prev"):
                             prev_close = ah0["prev"]
