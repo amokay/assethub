@@ -1158,17 +1158,23 @@ def get_stock_klines():
                             start_ts = int(et.replace(hour=4, minute=0, second=0, microsecond=0).timestamp() * 1000)
                             denom = 330.0
                         else:
-                            # 凌晨：Nasdaq 返回的是上一交易日数据，取昨日 9:30 起的盘中分时（终点昨日 20:00 盘后）
+                            # 凌晨：Nasdaq 返回的是最近交易日数据；回溯到最近交易日（跳过周末）
+                            # 取该日 9:30 起的盘中分时（终点该日 20:00 盘后）
                             yday = et - _dt.timedelta(days=1)
+                            while yday.weekday() >= 5:
+                                yday -= _dt.timedelta(days=1)
                             start_ts = int(yday.replace(hour=9, minute=30, second=0, microsecond=0).timestamp() * 1000)
                             denom = 390.0
                         # 按分钟网格补全 start_ts→当前：所有美股同一时间轴（起始/结束/进度一致）
                         rows_ts = [(row.get("x", 0), float(row["y"])) for row in chart
                                    if row.get("x", 0) >= start_ts and row.get("y")]
                         now_ts = int(et.timestamp() * 1000)
-                        # 凌晨时段终点取昨日 20:00（含盘后），避免未来时间戳造成尾部超长平线
+                        # 凌晨时段终点取最近交易日 20:00（含盘后），避免未来时间戳造成尾部超长平线
                         if cur < _dt.time(4, 0):
-                            end_ts = min(now_ts, int((et - _dt.timedelta(days=1)).replace(
+                            yday_end = et - _dt.timedelta(days=1)
+                            while yday_end.weekday() >= 5:
+                                yday_end -= _dt.timedelta(days=1)
+                            end_ts = min(now_ts, int(yday_end.replace(
                                 hour=20, minute=0, second=0, microsecond=0).timestamp() * 1000))
                         else:
                             end_ts = now_ts
