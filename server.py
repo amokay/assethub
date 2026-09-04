@@ -513,9 +513,14 @@ def get_portfolio(force=False):
 
         funds_out = []
         for f in funds:
+            cpn0 = f.get("cost_per_nav") or 0
             fd = {"name": f.get("name", ""), "code": f.get("code", ""),
                   "market_value": f.get("market_value", 0),
                   "cost": f.get("cost", 0),
+                  "cost_per_nav": cpn0,
+                  # 份额：模板显式 shares 优先，否则按 cost/成本单价 推算
+                  "shares": f.get("shares") or
+                  (round(f.get("cost", 0) / cpn0, 2) if cpn0 else 0),
                   "pnl": f.get("market_value", 0) - f.get("cost", 0)}
             # 净值日涨幅（手动维护 nav_hist：{date: nav}，用于精确的"今日收益"）
             nh = f.get("nav_hist") or {}
@@ -541,6 +546,7 @@ def get_portfolio(force=False):
                   "market_value": mv0,
                   "cost": cost0,
                   "cost_per_nav": f.get("cost_per_nav", 0),
+                  "shares": f.get("shares") or 0,
                   # 收益率实时计算（模板静态 yield_pct 会随成本/市值变化失真）
                   "yield_pct": round((mv0 - cost0) / cost0 * 100, 2) if cost0 > 0 else 0.0,
                   "pnl": mv0 - cost0}
@@ -1787,6 +1793,42 @@ class Handler(BaseHTTPRequestHandler):
                 with _lock:
                     _cache.pop("portfolio", None)
                 self._json({"ok": True, "code": code, "name": name or code, "merged": merged})
+            elif path == "/api/fund_edit":
+                # 修改基金：可用份额 / 持仓成本(单价) / 持仓收益(金额) → 成本=份额×单价, 市值=成本+收益
+                length = int(self.headers.get("Content-Length", 0))
+                body = json.loads(self.rfile.read(length).decode("utf-8"))
+                code = str(body.get("code") or "").strip()
+                market = body.get("market") or "us"
+                shares = float(body.get("shares") or 0)
+                cpn = float(body.get("cost_per_nav") or 0)
+                pnl = float(body.get("pnl") or 0)
+                if not code or shares <= 0 or cpn <= 0:
+                    self._json({"error": "份额与持仓成本单价需大于 0"}, 400)
+                    return
+                cost = round(shares * cpn, 2)
+                mv = round(cost + pnl, 2)
+                if mv <= 0:
+                    self._json({"error": "市值需大于 0（持仓收益与成本不匹配）"}, 400)
+                    return
+                import shutil
+                with open(TEMPLATE) as fp:
+                    tpl = json.load(fp)
+                key = "funds" if market == "us" else "funds_cny"
+                target = next((f for f in tpl.get(key, []) if f.get("code") == code), None)
+                if not target:
+                    self._json({"error": "未找到该基金"}, 404)
+                    return
+                shutil.copy(TEMPLATE, TEMPLATE + ".bak-" +
+                            datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
+                target["shares"] = round(shares, 2)
+                target["cost_per_nav"] = cpn
+                target["cost"] = cost
+                target["market_value"] = mv
+                with open(TEMPLATE, "w") as fp:
+                    json.dump(tpl, fp, ensure_ascii=False, indent=2)
+                with _lock:
+                    _cache.pop("portfolio", None)
+                self._json({"ok": True, "code": code, "cost": cost, "market_value": mv, "pnl": round(pnl, 2)})
             else:
                 self._json({"error": "not found"}, 404)
         except Exception as e:

@@ -233,6 +233,14 @@
   .card .change { font-size: 12px; margin-top: 4px; display: flex; align-items: center; gap: 6px; }
   .card .change .session { font-size: 11px; color: var(--muted); }
 
+  /* 基金卡片修改按钮（右上角，hover 显隐） */
+  #cards-funds .card, #cards-funds-cn .card { position: relative; }
+  .fund-edit-btn { position: absolute; top: 5px; right: 6px; background: none; border: 1px solid transparent;
+                   color: var(--muted); font-size: 10px; padding: 0 5px; border-radius: 4px;
+                   cursor: pointer; opacity: 0; transition: opacity .15s, color .15s, border-color .15s; z-index: 3; }
+  #cards-funds .card:hover .fund-edit-btn, #cards-funds-cn .card:hover .fund-edit-btn { opacity: .85; }
+  .fund-edit-btn:hover { color: var(--text); border-color: var(--muted); opacity: 1 !important; }
+
   /* 基金卡片：一行一个，左侧信息 + 右侧参考指数走势图（美元/人民币通用） */
   #cards-funds, #cards-funds-cn { display: grid; grid-template-columns: 1fr; gap: 12px; }
   #cards-funds .card, #cards-funds-cn .card { aspect-ratio: auto; flex-direction: row; align-items: center;
@@ -570,6 +578,25 @@
     </div>
   </div>
 </div>
+<div class="modal-mask" id="edit-fund-modal" onclick="if(event.target===this)closeEditFundModal()">
+  <div class="modal">
+    <h3 data-i18n="edit_fund">修改基金</h3>
+    <div class="fund-isin" id="ef-name" style="margin-bottom:10px;font-size:12px"></div>
+    <label data-i18n="fund_shares">可用份额
+      <input id="ef-shares" type="number" min="0" step="any">
+    </label>
+    <label data-i18n="fund_cost_nav">持仓成本（单价）
+      <input id="ef-cpn" type="number" min="0" step="any">
+    </label>
+    <label data-i18n="fund_pnl">持仓收益（金额）
+      <input id="ef-pnl" type="number" step="0.01">
+    </label>
+    <div class="modal-actions">
+      <button onclick="closeEditFundModal()" data-i18n="cancel">取消</button>
+      <button class="primary" onclick="submitEditFund()" data-i18n="save">保存</button>
+    </div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -606,6 +633,8 @@ const I18N = {
     hold_shares: '持仓数量', cost_price: '成本价', mkt_value: '当前市值', pnl: '盈亏', total_mv: '总市值',
     edit: '修改', save: '保存', del: '删除', cancel: '取消', add_confirm: '添加',
     add_stock: '手动添加持仓', edit_stock: '修改持仓', del_confirm: '删除确认', add_fund: '手动添加基金',
+    edit_fund: '修改基金', fund_cost_nav: '持仓成本（单价）', fund_pnl: '持仓收益（金额）',
+    edit: '修改', save: '保存', saved: '已保存', save_failed: '保存失败：', please_fund_edit: '请填写有效的份额、成本单价与收益',
     stock_code: '股票代码', shares: '数量（股）', cost_per_share: '成本价（美元/股）', please_add: '请添加',
     fund_code: '基金代码', fund_shares: '份数', mkt_value_cny: '当前市值（元）',
     refreshed: '已刷新', added: '已添加', add_failed: '添加失败：', deleted: '已删除', delete_failed: '删除失败：',
@@ -630,6 +659,8 @@ const I18N = {
     hold_shares: 'Shares', cost_price: 'Cost', mkt_value: 'Market Value', pnl: 'P&L', total_mv: 'Total MV',
     edit: 'Edit', save: 'Save', del: 'Delete', cancel: 'Cancel', add_confirm: 'Add',
     add_stock: 'Add Stock Manually', edit_stock: 'Edit Holding', del_confirm: 'Confirm Delete', add_fund: 'Add Fund Manually',
+    edit_fund: 'Edit Fund', fund_cost_nav: 'Cost / share', fund_pnl: 'Total P&L',
+    edit: 'Edit', save: 'Save', saved: 'Saved', save_failed: 'Save failed: ', please_fund_edit: 'Please enter valid shares, cost & P&L',
     stock_code: 'Stock Code', shares: 'Shares', cost_per_share: 'Cost / Share (USD)', please_add: 'Please add',
     fund_code: 'Fund Code', fund_shares: 'Shares', mkt_value_cny: 'Market Value (CNY)',
     refreshed: 'Refreshed', added: 'Added', add_failed: 'Add failed: ', deleted: 'Deleted', delete_failed: 'Delete failed: ',
@@ -1335,6 +1366,7 @@ function renderFunds() {
     // 颜色跟随各自内容：今日收益用日收益方向，整体涨跌用总盈亏方向
     const dayCls = dayRet !== null ? cls(dayRet) : c;
     return `<div class="card ${hideSec ? '' : c}">
+      <button class="fund-edit-btn" onclick="openEditFund('${f.code}','us')" data-i18n="edit">修改</button>
       <div class="fund-left">
         <div class="code" style="font-size:15px">${fundName(f.code, shortFundName(f.name))}<span class="fund-isin">${f.code || ''}</span></div>
         <div class="name">${_t('otc_fund')}</div>
@@ -1403,6 +1435,7 @@ function renderFundsCn() {
     // 颜色跟随各自内容：今日收益用日收益方向，整体涨跌用总盈亏方向
     const dayCls = dayRet !== null ? cls(dayRet) : c;
     return `<div class="card ${hideSec ? '' : c}">
+      <button class="fund-edit-btn" onclick="openEditFund('${f.code}','cn')" data-i18n="edit">修改</button>
       <div class="fund-left">
         <div class="code" style="font-size:15px">${fundName(f.code, shortFundName(f.name))}<span class="fund-isin">${f.code || ''}</span></div>
         <div class="name">${_t('cny_fund')}</div>
@@ -1490,6 +1523,40 @@ function openAddFundModal(market) {
   $('add-fund-modal').style.display = 'flex';
 }
 function closeAddFundModal() { $('add-fund-modal').style.display = 'none'; }
+
+/* ---------- 修改基金（份额 / 持仓成本单价 / 持仓收益金额） ---------- */
+let editFund = null;
+function openEditFund(code, market) {
+  const pool = market === 'us' ? (portfolio.funds || []) : (portfolio.funds_cny || []);
+  const f = pool.find(x => x.code === code);
+  if (!f) { toast('未找到基金 ' + code); return; }
+  editFund = { code, market };
+  $('ef-name').textContent = (f.name || code) + '（' + code + '）';
+  $('ef-shares').value = f.shares || '';
+  $('ef-cpn').value = f.cost_per_nav || '';
+  $('ef-pnl').value = f.pnl != null && isFinite(f.pnl) ? Math.round(f.pnl * 100) / 100 : '';
+  $('edit-fund-modal').style.display = 'flex';
+}
+function closeEditFundModal() { $('edit-fund-modal').style.display = 'none'; }
+async function submitEditFund() {
+  const shares = parseFloat($('ef-shares').value);
+  const cpn = parseFloat($('ef-cpn').value);
+  const pnl = parseFloat($('ef-pnl').value);
+  if (!editFund || !(shares > 0) || !(cpn > 0) || isNaN(pnl)) {
+    toast(_t('please_fund_edit'));
+    return;
+  }
+  try {
+    const d = await api('/api/fund_edit', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: editFund.code, market: editFund.market,
+                             shares, cost_per_nav: cpn, pnl })
+    });
+    closeEditFundModal();
+    toast(_t('saved') + ' ' + editFund.code);
+    loadPortfolio();
+  } catch (e) { toast(_t('save_failed') + e.message); }
+}
 async function submitAddFund() {
   const code = $('mf-code').value.trim();
   const mv = parseFloat($('mf-mv').value);
