@@ -1130,8 +1130,13 @@ def get_stock_klines():
                     if items:
                         now = datetime.datetime.now()
                         now_mins = now.hour * 60 + now.minute
-                        end_mins = min(now_mins, 900) if now_mins >= 570 else 570
-                        pts = _fill_minutes_idx(items, 570, max(570, end_mins))
+                        if now.weekday() < 5 and 570 <= now_mins <= 900:
+                            # 交易日盘中（含午休）：实时到当前分钟
+                            end_mins = now_mins
+                        else:
+                            # 开盘前/收盘后/周末：腾讯返回最近交易日完整数据 → 完整显示到 15:00
+                            end_mins = 900
+                        pts = _fill_minutes_idx(items, 570, max(570, min(end_mins, 900)))
                         if pts:
                             return (c, {"pts": pts, "progress": _session_progress("cn")})
                 else:
@@ -1157,34 +1162,39 @@ def get_stock_klines():
                             chart = (d.get("data") or {}).get("chart") or []
                             if chart:
                                 break
-                        # 按当前美东时段过滤：盘中/盘后取 9:30 开盘后的分时；盘前取 4:00 起；凌晨(0:00-4:00)取昨日盘中分时
-                        if cur >= _dt.time(9, 30):
+                        # 按当前美东时段取时间轴。关键：周末(周六/周日)全天非交易日，
+                        # Nasdaq 返回的是最近交易日(周五)数据 → 统一回溯到周五分时
+                        is_wknd = et.weekday() >= 5
+                        if is_wknd:
+                            # 周末全天：显示最近交易日 9:30-20:00 完整盘中分时
+                            base = et - _dt.timedelta(days=1)
+                            while base.weekday() >= 5:
+                                base -= _dt.timedelta(days=1)
+                            start_ts = int(base.replace(hour=9, minute=30, second=0, microsecond=0).timestamp() * 1000)
+                            end_ts = int(base.replace(hour=20, minute=0, second=0, microsecond=0).timestamp() * 1000)
+                            denom = 390.0
+                        elif cur >= _dt.time(9, 30):
+                            # 工作日盘中/盘后：今日 9:30 起
                             start_ts = int(et.replace(hour=9, minute=30, second=0, microsecond=0).timestamp() * 1000)
                             denom = 390.0
+                            end_ts = int(et.timestamp() * 1000)
                         elif cur >= _dt.time(4, 0):
+                            # 盘前：今日 4:00 起
                             start_ts = int(et.replace(hour=4, minute=0, second=0, microsecond=0).timestamp() * 1000)
                             denom = 330.0
+                            end_ts = int(et.timestamp() * 1000)
                         else:
-                            # 凌晨：Nasdaq 返回的是最近交易日数据；回溯到最近交易日（跳过周末）
-                            # 取该日 9:30 起的盘中分时（终点该日 20:00 盘后）
-                            yday = et - _dt.timedelta(days=1)
-                            while yday.weekday() >= 5:
-                                yday -= _dt.timedelta(days=1)
-                            start_ts = int(yday.replace(hour=9, minute=30, second=0, microsecond=0).timestamp() * 1000)
+                            # 凌晨(工作日 0:00-4:00)：回溯最近交易日 9:30 起（终点该日 20:00）
+                            base = et - _dt.timedelta(days=1)
+                            while base.weekday() >= 5:
+                                base -= _dt.timedelta(days=1)
+                            start_ts = int(base.replace(hour=9, minute=30, second=0, microsecond=0).timestamp() * 1000)
+                            end_ts = min(int(et.timestamp() * 1000), int(base.replace(
+                                hour=20, minute=0, second=0, microsecond=0).timestamp() * 1000))
                             denom = 390.0
-                        # 按分钟网格补全 start_ts→当前：所有美股同一时间轴（起始/结束/进度一致）
+                        # 按分钟网格补全 start_ts→end_ts：所有美股同一时间轴（起始/结束一致）
                         rows_ts = [(row.get("x", 0), float(row["y"])) for row in chart
                                    if row.get("x", 0) >= start_ts and row.get("y")]
-                        now_ts = int(et.timestamp() * 1000)
-                        # 凌晨时段终点取最近交易日 20:00（含盘后），避免未来时间戳造成尾部超长平线
-                        if cur < _dt.time(4, 0):
-                            yday_end = et - _dt.timedelta(days=1)
-                            while yday_end.weekday() >= 5:
-                                yday_end -= _dt.timedelta(days=1)
-                            end_ts = min(now_ts, int(yday_end.replace(
-                                hour=20, minute=0, second=0, microsecond=0).timestamp() * 1000))
-                        else:
-                            end_ts = now_ts
                         pts = _fill_minutes_ts(rows_ts, start_ts, end_ts)
                     except Exception:
                         pts = []
