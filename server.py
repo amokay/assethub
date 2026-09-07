@@ -719,7 +719,8 @@ def fetch_cn_fund_nav(code, tries=3):
             if attempt < tries - 1:
                 time.sleep(0.6)
         return {"values": [], "dates": []}
-    return cache_get("fund_nav_" + code, 86400, build)
+    # 缓存 6 小时：净值盘后公布，1 天缓存会让用户看到的净值滞后 ≥1 天
+    return cache_get("fund_nav_" + code, 21600, build)
 
 def _intraday_qq(code, total_minutes):
     """腾讯当日分时（0930 起逐分钟增量）：返回 (pts, progress)；失败返回 (None, None)"""
