@@ -766,7 +766,7 @@ def _sina_fut_minute(symbol, total_minutes=1380):
     return None, None
 
 def get_markets():
-    """纳指 / 恐慌指数 / 黄金 / 原油 / 比特币 一行核心指标 + 迷你趋势线"""
+    """纳指 / 黄金 / 原油 / 费城半导体(SOX) / 30年期美债 一行核心指标 + 迷你趋势线"""
     def build():
         items = []
         sparks = {}
@@ -843,13 +843,24 @@ def get_markets():
                 except Exception:
                     pass
 
-        # 比特币：Binance 公共行情数据 + 近 24h 走势（1 小时K线，24h 交易无进度留白）
+        # 费城半导体指数（SOX）：Nasdaq 官方报价 + 当日 intraday 分时（替代原比特币）
         try:
-            raw = http_get("https://data-api.binance.vision/api/v3/ticker/24hr?symbol=BTCUSDT")
-            d = json.loads(raw)
-            add("BTC", "比特币", float(d["lastPrice"]), float(d["prevClosePrice"]), "美元")
-            raw = http_get("https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=24")
-            sparks["BTC"] = [float(x[4]) for x in json.loads(raw)]
+            nasdaq_hdr = {
+                "User-Agent": UA, "Accept": "application/json, text/plain, */*",
+                "Origin": "https://www.nasdaq.com", "Referer": "https://www.nasdaq.com/",
+            }
+            raw = http_get("https://api.nasdaq.com/api/quote/SOX/chart?assetclass=index&type=intraday",
+                           headers=nasdaq_hdr, timeout=10)
+            _d = json.loads(raw)
+            data = _d.get("data") or {}
+            ls = (data.get("lastSalePrice") or "").replace(",", "").replace("$", "").strip()
+            pc = (data.get("previousClose") or "").replace(",", "").strip()
+            if ls and pc and float(ls) > 0 and float(pc) > 0:
+                add("SOX", "费城半导体", float(ls), float(pc), "点")
+                chart = data.get("chart") or []
+                pts = [float(r["y"]) for r in chart if r.get("y") is not None]
+                if pts:
+                    sparks["SOX"] = pts
         except Exception:
             pass
 
