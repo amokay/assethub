@@ -1064,6 +1064,8 @@ function applyColorMode() {
   sw.classList.toggle('mode-up-green', upGreen);
   sw.classList.toggle('mode-up-red', !upGreen);
   $('cs-label').textContent = upGreen ? _t('upgreen') : _t('upred');
+  // 涨跌色变了 → 热力图色阶缓存作废（浮层没开也要清，否则下次打开还是旧色）
+  hmRecolor();
   // 热力图若开着，底色与图例同步反转
   if ($('hm-mask') && $('hm-mask').classList.contains('open')) { hmApplyStatic(); hmDraw(); }
 }
@@ -2146,17 +2148,71 @@ function hmName(it) {
   return ((lang === 'en' ? HM_SHORT_EN : HM_SHORT_ZH)[it.code]) || it.name;
 }
 
-/* ---- 配色：参考图同款 8 级离散色阶（每 1 个百分档一色，±3% 封顶）----
-   跌：#5f260f → #832e0a → #a83706 → #cb4000     涨：#0d4c45 → #0a695b → #028570 → #00a186
-   方向跟随「涨红跌绿 / 涨绿跌红」一键切换（upGreen） */
-const HM_RED = ['#5f260f', '#832e0a', '#a83706', '#cb4000'];
-const HM_GREEN = ['#0d4c45', '#0a695b', '#028570', '#00a186'];
+/* ---- 配色：热力图色阶从「外面股票卡片的涨跌色」派生 ----
+   取 --up / --down 的**实际解析色**（默认 #ff453a / #30d158，随「涨红跌绿 ↔ 涨绿跌红」
+   一键反转自动互换），保持色相与饱和度、按统一系数逐档压低明度 → 4 档深浅。
+   系数 0.36~0.66 让新色阶的明度正好落在原硬编码色阶的区间
+   （红 22/28/34/40%，绿 18/23/28/33%），深浅节奏不变，但色相与股票卡片完全一致。
+   以后改 --red / --green 或反转涨跌，热力图与图例自动跟随，不再维护第二套颜色。 */
+const HM_LV = [0.36, 0.46, 0.56, 0.66];   // 明度系数（× base 的 L）：0 档最深 → 3 档最亮
 const HM_NODATA = '#4d4d59';
+
+/* 'rgb(48, 209, 88)' 或 '#30d158' → [r, g, b] */
+function hmRgb(c) {
+  const m = String(c).match(/rgba?\(([^)]+)\)/);
+  if (m) return m[1].split(',').slice(0, 3).map(parseFloat);
+  const h = String(c).trim().replace(/^#/, '');
+  const s = h.length === 3 ? h.split('').map(x => x + x).join('') : h;
+  return [0, 2, 4].map(i => parseInt(s.slice(i, i + 2), 16));
+}
+function hmToHsl([r, g, b]) {
+  r /= 255; g /= 255; b /= 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  let h = 0;
+  if (d) {
+    if (mx === r) h = ((g - b) / d) % 6;
+    else if (mx === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h *= 60; if (h < 0) h += 360;
+  }
+  const l = (mx + mn) / 2;
+  return [h, d ? d / (1 - Math.abs(2 * l - 1)) : 0, l];
+}
+function hmFromHsl(h, s, l) {
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  const m = l - c / 2;
+  const rgb = [[c, x, 0], [x, c, 0], [0, c, x], [0, x, c], [x, 0, c], [c, 0, x]]
+    [Math.floor(h / 60) % 6].map(v => Math.round((v + m) * 255));
+  return '#' + rgb.map(v => v.toString(16).padStart(2, '0')).join('');
+}
+/* 取 --up / --down 的解析后颜色：这两个变量值是 `var(--green)` 这样的**引用**，
+   getComputedStyle 直接读只会拿到字面量，所以用隐藏探针元素染一次色再读 computed color。
+   结果缓存；配色模式切换时由 hmRecolor() 置空重算。 */
+function hmRamps() {
+  if (hmRamps.cache) return hmRamps.cache;
+  const probe = document.createElement('span');
+  probe.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden';
+  document.documentElement.appendChild(probe);
+  probe.style.color = 'var(--up)';
+  const up = getComputedStyle(probe).color;
+  probe.style.color = 'var(--down)';
+  const down = getComputedStyle(probe).color;
+  probe.remove();
+  const ramp = col => {
+    const [h, s, l] = hmToHsl(hmRgb(col));
+    return HM_LV.map(k => hmFromHsl(h, s, Math.min(1, l * k)));
+  };
+  hmRamps.cache = { up: ramp(up), down: ramp(down) };
+  return hmRamps.cache;
+}
+function hmRecolor() { hmRamps.cache = null; }
+
 function hmBg(pct) {
   if (pct === null || pct === undefined || isNaN(pct)) return HM_NODATA;
   const idx = Math.min(3, Math.floor(Math.abs(pct)));   // 0~1% → 0 档，1~2% → 1 档……
-  const warm = upGreen ? (pct < 0) : (pct >= 0);        // 该用红色阶吗
-  return (warm ? HM_RED : HM_GREEN)[idx];
+  const r = hmRamps();                                  // 正数用 --up 派生色阶，负用 --down
+  return (pct >= 0 ? r.up : r.down)[idx];
 }
 /* 参考图数值写法：正数不带 +，去掉末尾多余 0，至少保留 1 位小数 */
 function hmPctTxt(p) {
@@ -2329,10 +2385,9 @@ function hmApplyStatic() {
     + (hideSec ? eyeClosed : eyeOpen) + '</button>';
   $('hm-leg-lo').textContent = lang === 'en' ? 'Down' : '跌';
   $('hm-leg-hi').textContent = lang === 'en' ? 'Up' : '涨';
-  // 图例 = 参考图同款 8 级离散色阶（左跌右涨，方向跟随页面顶部的一键配色）
-  const downRamp = upGreen ? HM_RED : HM_GREEN;
-  const upRamp = upGreen ? HM_GREEN : HM_RED;
-  $('hm-ramp').innerHTML = downRamp.slice().reverse().concat(upRamp)
+  // 图例 = 8 格离散色阶（左跌右涨），直接复用从 --up / --down 派生的那两套 → 天然跟随配色
+  const rm = hmRamps();
+  $('hm-ramp').innerHTML = rm.down.slice().reverse().concat(rm.up)
     .map(c => `<i style="background:${c}"></i>`).join('');
   $('hm-chk-us').classList.toggle('on', hmOn.us);
   $('hm-chk-cn').classList.toggle('on', hmOn.cn);
