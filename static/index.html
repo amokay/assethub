@@ -410,8 +410,17 @@
                                line-height: 1.1; white-space: nowrap; }
   .hm-cell .nm { font-weight: 500; }        /* 名称：比百分比细一档 */
   .hm-cell .ch { font-weight: 700; }        /* 百分比：字重不变 */
-  .hm-cell.enter { animation: hmCellIn .34s cubic-bezier(.2,.7,.3,1); }
-  @keyframes hmCellIn { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
+  /* 方块入场：略小 + 上浮 5px + 淡入。fill-mode 必须是 backwards —— 排队等待期间停在
+     0% 帧（不可见），动画结束即放手，不会留下 forwards 残影压住 :hover 的 translateY */
+  .hm-cell.enter { animation: hmCellIn .42s cubic-bezier(.16,.84,.3,1) backwards; }
+  @keyframes hmCellIn {
+    from { opacity: 0; transform: scale(.88) translateY(5px) }
+    55%  { opacity: 1 }
+    to   { opacity: 1; transform: none }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hm-cell.enter { animation: none; }
+  }
   .hm-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
               color: var(--muted); font-size: 13px; }
   /* hover 详情浮标 */
@@ -2240,7 +2249,7 @@ async function hmRefresh(ev) {
   }
   try {
     hmData = await api('/api/heatmap?force=1');
-    requestAnimationFrame(hmDraw);
+    requestAnimationFrame(() => hmDraw(true));
   } catch (err) {
     toast(_t('fail_quote') + (err.message || ''));
   }
@@ -2250,11 +2259,11 @@ async function hmRefresh(ev) {
 async function openHeatmap() {
   $('hm-mask').classList.add('open');
   hmApplyStatic();
-  if (hmData) requestAnimationFrame(hmDraw);
+  if (hmData) requestAnimationFrame(() => hmDraw(true));
   else $('hm-stage').innerHTML = '<div class="hm-empty">' + _t('loading') + '</div>';
   try {
     hmData = await api('/api/heatmap');
-    requestAnimationFrame(hmDraw);
+    requestAnimationFrame(() => hmDraw(true));
   } catch (e) {
     if (!hmData) $('hm-stage').innerHTML = '<div class="hm-empty">' + esc(_t('hm_load_failed') + (e.message || '')) + '</div>';
   }
@@ -2270,13 +2279,13 @@ function hmSetMarket(k, on) {
   // 至少保留一个筛选项，避免空视图
   if (!hmAnyOn()) { hmOn[k] = true; $('hm-chk-' + k).querySelector('input').checked = true; }
   hmApplyStatic();
-  hmDraw();
+  hmDraw(true);
 }
 function hmSetFund(on) {
   hmOn.fund = !!on;
   if (!hmAnyOn()) { hmOn.fund = true; $('hm-chk-fd').querySelector('input').checked = true; }
   hmApplyStatic();
-  hmDraw();
+  hmDraw(true);
 }
 function hmPaintCell(el, it, w, h) {
   const pct = it.day_pct;
@@ -2295,8 +2304,23 @@ function hmShow(i) {
   return hmOn[i.market];
 }
 
-/* 扁平布局：全部标的（美元+人民币）铺成一张图，不分组 */
-function hmDraw() {
+/* 起播入场动画。必须「摘类 → 强制回流 → 加类」：直接 add 的话第二次刷新时
+   类名没变，浏览器认为动画没被打断，不会重播（原来的写法更是下一帧就 remove，等于没动效） */
+function hmPlayEnter(el, delayMs) {
+  el.classList.remove('enter');
+  el.style.animationDelay = (delayMs || 0) + 'ms';
+  void el.offsetWidth;
+  el.classList.add('enter');
+  el.addEventListener('animationend', () => {
+    el.classList.remove('enter');      // 播完摘掉，别让 animation 残留压住 :hover 的位移
+    el.style.animationDelay = '';
+  }, { once: true });
+}
+
+/* 扁平布局：全部标的（美元+人民币）铺成一张图，不分组。
+   animate=true 时清掉全部方块重铺一遍，方块按面积从大到小依次落位（刷新/切筛选/打开）。
+   窗口 resize 走 animate=false：只挪位置，不重播入场，否则拖拽窗口会一直在闪。 */
+function hmDraw(animate) {
   const stage = $('hm-stage');
   if (!hmData || !stage) return;
   const W = stage.clientWidth, H = stage.clientHeight;
@@ -2325,6 +2349,23 @@ function hmDraw() {
   const alive = new Set();
   hmIndex = new Map();
 
+  /* 入场排队：按面积从大到小（与"最大块在左上角"同序）。
+     步进 18ms 起步、最多 70ms（标的少时也能看出"一个个来"），
+     总数按 520ms 封顶 → 标的多的时候自动压缩，保证 1s 内全部落位 */
+  const rank = rects.slice().sort((a, b) => b.w * b.h - a.w * a.h);
+  const step = Math.min(70, Math.max(18, 520 / Math.max(1, rank.length)));
+  const delayOf = new Map();
+  rank.forEach((r, i) => {
+    const it = r.ref;
+    delayOf.set(it.market + '|' + it.code + '|' + it.kind, Math.round(i * step));
+  });
+  if (animate) {
+    for (const [, el] of hmCells) el.remove();
+    hmCells.clear();
+    const pop = $('hm-pop');                        // 清场后旧气泡挂在已删方块上，先收起来
+    if (pop) { pop.classList.remove('show'); pop.dataset.k = ''; }
+  }
+
   for (const r of rects) {
     const it = r.ref;
     const key = it.market + '|' + it.code + '|' + it.kind;
@@ -2332,10 +2373,10 @@ function hmDraw() {
     hmIndex.set(key, it);
     const x = r.x + GAP / 2, y = r.y + GAP / 2;
     const w = Math.max(0, r.w - GAP), h = Math.max(0, r.h - GAP);
-    let el = hmCells.get(key);
+    let el = hmCells.get(key), isNew = false;
     if (!el) {
       el = document.createElement('div');
-      el.className = 'hm-cell enter';
+      el.className = 'hm-cell';
       el.dataset.hmk = key;
       // 首帧先落到目标位置再淡入，避免从 (0,0) 飞入
       el.style.left = x + 'px';
@@ -2344,7 +2385,7 @@ function hmDraw() {
       el.style.height = h + 'px';
       stage.appendChild(el);
       hmCells.set(key, el);
-      requestAnimationFrame(() => el.classList.remove('enter'));
+      isNew = true;
     } else {
       el.style.left = x + 'px';
       el.style.top = y + 'px';
@@ -2353,6 +2394,7 @@ function hmDraw() {
     }
     el.style.background = hmBg(it.day_pct);
     hmPaintCell(el, it, w, h);
+    if (isNew) hmPlayEnter(el, delayOf.get(key) || 0);   // 内容铺完再起播，第一帧就是成品
   }
   for (const [k, el] of hmCells) { if (!alive.has(k)) { el.remove(); hmCells.delete(k); } }
 }
