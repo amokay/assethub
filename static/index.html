@@ -348,16 +348,24 @@
              display: none; flex-direction: column; padding: 16px 18px 18px; }
   .hm-mask.open { display: flex; animation: hmFade .22s ease; }
   @keyframes hmFade { from { opacity: 0 } to { opacity: 1 } }
-  .hm-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 0 2px 6px; }
+  /* gap 与页面 header 的按钮间距一致 */
+  .hm-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 0 2px 6px; }
   .hm-title { font-size: 16px; font-weight: 700; letter-spacing: -.2px; }
   .hm-title .cnt { font-size: 12px; font-weight: 500; color: var(--muted); margin-left: 8px; }
-  .hm-close { margin-left: auto; background: var(--card); color: var(--text);
+  /* 标题旁的总额眼睛：直接复用页面既有的 .eye 规格 */
+  .hm-title .eye { top: 0; }
+  /* 右上角操作区：刷新按钮沿用页面 .refresh 的完整规格，靠 margin-left:auto 顶到最右，
+     关闭按钮紧跟其后（原先是关闭按钮自己 margin-left:auto） */
+  .hm-head .hm-refresh { margin-left: auto; }
+  .hm-close { background: var(--card); color: var(--text);
               border: 1px solid var(--border); border-radius: 8px; width: 30px; height: 28px;
               cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
   .hm-close:hover { background: var(--card-hover); }
   .hm-close svg { width: 14px; height: 14px; }
+  /* 负 margin 抵消首个 .hm-chk 的 12px 左内边距，让勾选框方框与标题「资」字左缘对齐
+     （只在左侧外扩 12px，右缘不动，图例的 margin-left:auto 不受影响） */
   .hm-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-            padding: 0 2px 12px; }
+            padding: 0 2px 12px; margin-left: -12px; }
   /* 顶部筛选：无外边框、无底色；选中态靠「勾选框实心 + 文字提亮」表达 */
   .hm-chk { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600;
             color: var(--muted); background: transparent;
@@ -601,6 +609,11 @@
 <div class="hm-mask" id="hm-mask">
   <div class="hm-head">
     <div class="hm-title" id="hm-title"></div>
+    <!-- 刷新：沿用页面顶部 .refresh 的 class 与图标，间距/圆角/字色全部同源 -->
+    <button class="refresh hm-refresh" onclick="hmRefresh(event)">
+      <span data-i18n="refresh">刷新</span>
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>
+    </button>
     <button class="hm-close" onclick="closeHeatmap()" aria-label="close">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
     </button>
@@ -2166,7 +2179,14 @@ function fitHmText(name, chg, w, h) {
 }
 
 function hmApplyStatic() {
-  $('hm-title').innerHTML = esc(_t('hm_title')) + '<span class="cnt" id="hm-cnt"></span>';
+  const en = lang === 'en';
+  const eyeTip = hideSec ? (en ? 'Show amounts' : '显示金额')
+                         : (en ? 'Hide amounts' : '隐藏金额');
+  /* 标题右侧：总市值 + 眼睛（复用页面既有的 .eye 规格与 eyeOpen/eyeClosed 图标） */
+  $('hm-title').innerHTML = esc(_t('hm_title'))
+    + '<span class="cnt" id="hm-cnt"></span>'
+    + `<button class="eye" id="hm-eye" onclick="hmToggleSec()" title="${esc(eyeTip)}">`
+    + (hideSec ? eyeClosed : eyeOpen) + '</button>';
   $('hm-tip').textContent = _t('hm_area_tip');
   $('hm-leg-lo').textContent = lang === 'en' ? 'Down' : '跌';
   $('hm-leg-hi').textContent = lang === 'en' ? 'Up' : '涨';
@@ -2179,7 +2199,6 @@ function hmApplyStatic() {
   $('hm-chk-cn').classList.toggle('on', hmOn.cn);
   $('hm-chk-fd').classList.toggle('on', hmOn.fund);
   const noMkt = !hmOn.us && !hmOn.cn;
-  const en = lang === 'en';
   $('hm-chk-fd').title = !hmOn.fund
     ? (en ? 'Funds hidden — check to restore' : '已隐藏基金，勾选恢复')
     : noMkt
@@ -2188,6 +2207,32 @@ function hmApplyStatic() {
   document.documentElement.style.overflow = $('hm-mask').classList.contains('open') ? 'hidden' : '';
 }
 
+/* 标题旁的眼睛：与浮层外的金额隐藏共用同一个 hideSec（页面侧交给 toggleSecNums） */
+function hmToggleSec() {
+  toggleSecNums();
+  hmApplyStatic();
+  hmDraw();
+}
+
+/* 右上角刷新：?force=1 绕过服务端 45s 缓存并同步取一次最新行情。
+   服务端在 force 时已顺手把组合缓存也刷了，所以随后 loadPortfolio() 直接吃新值，
+   不会再打一次上游；它只重建浮层背后的页面，浮层本身不受影响。 */
+async function hmRefresh(ev) {
+  const btn = (ev && ev.currentTarget) || document.querySelector('.hm-refresh');
+  if (btn) {
+    btn.classList.remove('spinning');
+    void btn.offsetWidth;
+    btn.classList.add('spinning');
+    btn.addEventListener('animationend', () => btn.classList.remove('spinning'), { once: true });
+  }
+  try {
+    hmData = await api('/api/heatmap?force=1');
+    requestAnimationFrame(hmDraw);
+  } catch (err) {
+    toast(_t('fail_quote') + (err.message || ''));
+  }
+  if (portfolio) loadPortfolio();
+}
 
 async function openHeatmap() {
   $('hm-mask').classList.add('open');
@@ -2254,7 +2299,7 @@ function hmDraw() {
   if (oldEmpty) oldEmpty.remove();
   const cnt = $('hm-cnt');
   if (cnt) cnt.textContent = items.length
-    ? `${hmMoney(totalUsd, '$')} ≈ ${hmMoney(totalCny, '¥')}` : '';
+    ? (hideSec ? '$**** ≈ ¥****' : `${hmMoney(totalUsd, '$')} ≈ ${hmMoney(totalCny, '¥')}`) : '';
   if (!items.length) {
     hmCells.forEach(el => el.remove());
     hmCells.clear();
@@ -2306,8 +2351,10 @@ function hmShowPop(el, ev) {
   const pct = it.day_pct;
   const has = !(pct === null || pct === undefined || isNaN(pct));
   const sym = it.cur === 'CNY' ? '¥' : '$';
-  const mv = sym + fmt(it.mv_local)
-    + (it.cur === 'CNY' ? ` <span style="color:var(--muted)">≈ $${fmt(Math.round(it.mv_usd))}</span>` : '');
+  // 眼睛隐藏时，悬浮详情里的市值也要一起遮住，否则等于没藏
+  const mv = hideSec ? '****'
+    : sym + fmt(it.mv_local)
+      + (it.cur === 'CNY' ? ` <span style="color:var(--muted)">≈ $${fmt(Math.round(it.mv_usd))}</span>` : '');
   const c = cls(pct);
   const col = !has ? 'var(--muted)' : (c === 'up' ? 'var(--up)' : c === 'down' ? 'var(--down)' : 'var(--text)');
   pop.innerHTML = `<b>${esc(hmName(it))}</b>`

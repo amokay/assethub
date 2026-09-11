@@ -1717,6 +1717,11 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/preference":
                 self._json(get_preference())
             elif path == "/api/heatmap":
+                # ?force=1 强制绕过缓存手动取一次最新行情（热力图右上角刷新按钮）
+                if self.path.split("?", 1)[-1] == "force=1":
+                    _cache.pop("heatmap", None)
+                    _cache.pop("portfolio", None)   # 热力图由组合数据派生，跟着一起失效
+                    get_portfolio(force=True)
                 self._json(get_heatmap())
             elif path == "/api/kline":
                 self._json(get_stock_klines())
