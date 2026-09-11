@@ -2205,10 +2205,10 @@ const HM_NAME_SCALE = 0.75;           // 名称字号 = 基准字号 × 0.75
 const HM_NAME_MIN = 5.4;              // 名称最小字号：保住可读下限，不随缩放继续下探
 const HM_NAME_MAX = HM_FS_MAX * HM_NAME_SCALE;
 const HM_TXT_LAG = 170;               // 文字比方块晚 170ms 浮现（方块 540ms 收尾时正好同步）
-const HM_WAVE_PER = 17;               // 入场波纹：每格错峰步进（ms）
-const HM_WAVE_MIN = 220;              // 标的很少时也要"一个个来"
-const HM_WAVE_MAX = 560;              // 标的多时总排队封顶，整体仍在 1.3s 内落位
-const HM_WAVE_LEAD = 120;             // 起手静默：清场后先空一拍再起波，避免"删旧块"与"出新块"挤在同一帧
+const HM_STAG_MIN = 18;               // 入场错峰：每格步进下限
+const HM_STAG_MAX = 70;               // 上限（标的很少时也要看得出"一个个来"）
+const HM_STAG_CAP = 520;              // 总排队封顶：标的多时自动压缩，整体 1s 内落位
+const HM_STAG_LEAD = 120;             // 起手静默：清场后先空一拍，避免"删旧块"与"出新块"挤在同一帧
 function fitHmText(name, chg, w, h) {
   const aw = Math.max(4, w - 5), ah = Math.max(4, h - 3);
   const perPx = (t, wt) => hmMeasure(t, 100, wt) / 100;    // 每 1px 字号对应的宽度
@@ -2400,20 +2400,15 @@ function hmDraw(animate) {
   const pending = [];                              // 本次新建的方块：几何全部落定后统一起播
   hmIndex = new Map();
 
-  /* 入场排队：以最大块（左上角那块）为波心，按距离由近及远铺开 —— 视觉上是一圈斜向
-     波纹从左上漫到右下，比"单纯按面积排"更有方向感。距离只用来决定「顺序」，
-     时间仍然等分（waveMs / (n-1)）：若按距离比例给延时，远端小块会因为彼此距离接近
-     而一群一群地蹦出来，反而看不出"一个个快速加载"。 */
-  const anchor = rects.reduce((a, b) => (b.w * b.h > a.w * a.h ? b : a), rects[0]);
-  const ax = anchor.x + anchor.w / 2, ay = anchor.y + anchor.h / 2;
-  const wave = rects.map(r => ({ r, d: Math.hypot(r.x + r.w / 2 - ax, r.y + r.h / 2 - ay) }))
-                    .sort((p, q) => p.d - q.d || (q.r.w * q.r.h - p.r.w * p.r.h));
-  const waveMs = Math.min(HM_WAVE_MAX, Math.max(HM_WAVE_MIN, wave.length * HM_WAVE_PER));
-  const step = wave.length > 1 ? waveMs / (wave.length - 1) : 0;
+  /* 入场排队：按面积从大到小（与"最大块在左上角"同序）—— 大块先落，小块随后补满。
+     不用"到某点的距离"铺波纹（用户明确不要波纹）：那样会把整片方块按斜向扫过，
+     方向感太强，反而像在放特效。步进 18ms 起步、最多 70ms，总数 520ms 封顶。 */
+  const rank = rects.slice().sort((a, b) => b.w * b.h - a.w * a.h);
+  const step = Math.min(HM_STAG_MAX, Math.max(HM_STAG_MIN, HM_STAG_CAP / Math.max(1, rank.length)));
   const delayOf = new Map();
-  wave.forEach(({ r }, i) => {
+  rank.forEach((r, i) => {
     const it = r.ref;
-    delayOf.set(it.market + '|' + it.code + '|' + it.kind, HM_WAVE_LEAD + Math.round(i * step));
+    delayOf.set(it.market + '|' + it.code + '|' + it.kind, HM_STAG_LEAD + Math.round(i * step));
   });
   if (animate) {
     for (const [, el] of hmCells) el.remove();
