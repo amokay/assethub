@@ -499,6 +499,7 @@ def get_portfolio(force=False):
         fund_cny_mv = sum(f.get("market_value", 0) for f in funds_cny)
         fund_cny_cost = sum(f.get("cost", 0) for f in funds_cny)
         cash = tpl.get("cash_usd", 0)
+        cash_cny = tpl.get("cash_cny", 0)
         rate = tpl.get("usd_cny_rate", 7.0)
         rate_src = "template"
         fx = fetch_usd_cny()
@@ -573,19 +574,21 @@ def get_portfolio(force=False):
             "stock_total_cn": {"mv": stock_cn_mv, "cost": stock_cn_cost,
                                "pnl": stock_cn_mv - stock_cn_cost, "day_pnl": cn_day_pnl},
             "funds_cny": funds_cny_out,
-            "cn_totals": {"mv": stock_cn_mv + fund_cny_mv,
-                          "cost": stock_cn_cost + fund_cny_cost,
+            # 人民币侧口径与美元侧一致：现金同时计入 MV 与成本（故只影响总资产、不影响盈亏）
+            "cn_totals": {"mv": stock_cn_mv + fund_cny_mv + cash_cny,
+                          "cost": stock_cn_cost + fund_cny_cost + cash_cny,
                           "pnl": (stock_cn_mv - stock_cn_cost) + (fund_cny_mv - fund_cny_cost),
-                          "pnl_pct": ((stock_cn_mv + fund_cny_mv) - (stock_cn_cost + fund_cny_cost))
-                                     / (stock_cn_cost + fund_cny_cost) * 100
-                                     if (stock_cn_cost + fund_cny_cost) else 0,
+                          "pnl_pct": ((stock_cn_mv + fund_cny_mv + cash_cny)
+                                      - (stock_cn_cost + fund_cny_cost + cash_cny))
+                                     / (stock_cn_cost + fund_cny_cost + cash_cny) * 100
+                                     if (stock_cn_cost + fund_cny_cost + cash_cny) else 0,
                           "day_pnl": cn_day_pnl},
             "options": [{"name": o.get("name", ""), "contracts": o.get("contracts", 0),
                          "mkt_value": o.get("mkt_value", 0), "cost": o.get("premium_paid_total", 0),
                          "expiry": o.get("expiry", ""),
                          "pnl": o.get("mkt_value", 0) - o.get("premium_paid_total", 0)} for o in opt],
             "funds": funds_out,
-            "cash": cash,
+            "cash": cash, "cash_cny": cash_cny,
             "totals": {"mv": grand, "mv_cny": grand * rate, "cost": gcost,
                        "pnl": grand - gcost, "pnl_pct": (grand - gcost) / gcost * 100,
                        "day_pnl": day_pnl},
@@ -1944,6 +1947,36 @@ class Handler(BaseHTTPRequestHandler):
                 with _lock:
                     _cache.pop("portfolio", None)
                 self._json({"ok": True, "code": code, "cost": cost, "market_value": mv, "pnl": round(pnl, 2)})
+            elif path == "/api/cash":
+                # 现金余额 → 覆盖 tpl["cash_usd"]（market=us）或 tpl["cash_cny"]（market=cn）。
+                # 注意：现金同时计入总资产(=MV)与总成本(gcost)，所以改现金只影响总资产、不影响盈亏。
+                length = int(self.headers.get("Content-Length", 0))
+                body = json.loads(self.rfile.read(length).decode("utf-8"))
+                market = body.get("market") or "us"
+                key = "cash_cny" if market == "cn" else "cash_usd"
+                raw = body.get("amount", None)
+                if raw is None or raw == "":
+                    self._json({"error": "参数无效"}, 400)
+                    return
+                try:
+                    amt = round(float(raw), 2)
+                except (TypeError, ValueError):
+                    self._json({"error": "参数无效"}, 400)
+                    return
+                if amt < 0:
+                    self._json({"error": "现金不能为负数"}, 400)
+                    return
+                import shutil
+                with open(TEMPLATE) as fp:
+                    tpl = json.load(fp)
+                shutil.copy(TEMPLATE, TEMPLATE + ".bak-" +
+                            datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
+                tpl[key] = amt
+                with open(TEMPLATE, "w") as fp:
+                    json.dump(tpl, fp, ensure_ascii=False, indent=2)
+                with _lock:
+                    _cache.pop("portfolio", None)
+                self._json({"ok": True, "market": market, "key": key, "cash": amt})
             else:
                 self._json({"error": "not found"}, 404)
         except Exception as e:

@@ -311,6 +311,8 @@
            overflow: hidden; }
 
   .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }
+  /* 美元 / 人民币两个视图都是 4 张卡（总资产 / 总盈亏 / 当日盈亏 / 现金），排成一行 */
+  #summary, #summary-cn { grid-template-columns: repeat(4, 1fr); }
 
   /* 顶部市场 tab（美股 / A股），居左 + 滑动下划线 */
   .market-tabs { position: relative; display: flex; gap: 18px; margin: 2px 0 14px;
@@ -325,7 +327,9 @@
   .empty-tip { color: var(--muted); text-align: center; padding: 60px 20px; font-size: 14px;
                line-height: 2; }
   /* 卡片宽度收缩到内容宽度：标题行右端的入口按钮才能与下方数字右边缘对齐 */
-  .summary-card { padding: 12px 4px; overflow: visible; width: fit-content; }
+  /* 卡片不设 width: 在 grid 里默认 stretch 撑满整列 → 四张卡等宽、卡间距严格等于 gap(12px)。
+     若用 fit-content，各卡内容宽度不同会让剩余空间堆在右侧，视觉间距从 37px 递增到 102px（不一致）。 */
+  .summary-card { padding: 12px 4px; overflow: visible; }
   .summary-card .value { white-space: nowrap; }
   .summary-card .label, .summary-card .hint { white-space: nowrap; }
   .summary-card .label { color: var(--muted); font-size: 13px; margin-bottom: 6px;
@@ -452,9 +456,18 @@
          display: inline-flex; align-items: center; color: var(--muted);
          vertical-align: middle; position: relative; top: -1px; }
   .eye svg { width: 14px; height: 14px; }
-  /* 汇总卡「总资产」标签后的眼睛：.label 是 flex + gap:12px，
-     用负 margin 把眼睛贴到「总资产」右侧（净 6px），与后面热力图按钮保持 12px 行距 */
-  .summary-card .label .eye { margin: 0 0 0 -6px; }
+  /* 汇总卡「总资产」标签后的眼睛：.label 是 flex + gap:12px + space-between，
+     用左负 margin 贴到「总资产」右侧（净 6px）；margin-right:auto 让「总资产 👁」作为一组贴左，
+     把「查看热力图」按钮单独顶到卡片右缘（不加 auto 的话卡片变宽后眼睛会飘在两者中间）。 */
+  .summary-card .label .eye { margin: 0 auto 0 -6px; }
+  /* 汇总卡「现金」标签后的编辑铅笔：规格同 .eye（无底无框 / muted / 14px / 上移 1px），
+     .label 是 flex + gap:12px + space-between，用左负 margin 贴到标题右侧（净 6px）；
+     margin-right:auto 让铅笔紧跟标题，而不是被 space-between 顶到卡片最右 */
+  .summary-card .label .cash-edit { background: none; border: none; cursor: pointer; padding: 0;
+         margin: 0 auto 0 -6px; display: inline-flex; align-items: center;
+         color: var(--muted); vertical-align: middle; position: relative; top: -1px; }
+  .summary-card .label .cash-edit svg { width: 14px; height: 14px; }
+  .summary-card .label .cash-edit:hover { color: var(--text); }
   /* logo 旁的 slogan：底部与 logo 底边对齐，微调下移 2px、左移 6px；中文加大字距 */
   .slogan { font-size: 14px; color: var(--muted); font-weight: 500;
             margin-left: 12px; letter-spacing: .4px; white-space: nowrap; align-self: flex-end;
@@ -750,6 +763,18 @@
     </div>
   </div>
 </div>
+<div class="modal-mask" id="cash-modal" onclick="if(event.target===this)closeCashModal()">
+  <div class="modal">
+    <h3 data-i18n="set_cash">录入现金</h3>
+    <label><span id="cash-unit">现金余额（美元）</span>
+      <input id="c-amt" type="number" min="0" step="0.01" placeholder="8000.00">
+    </label>
+    <div class="modal-actions">
+      <button onclick="closeCashModal()" data-i18n="cancel">取消</button>
+      <button class="primary" onclick="submitCash()" data-i18n="save">保存</button>
+    </div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -801,6 +826,9 @@ const I18N = {
     otc_fund: '场外基金 ｜ 净值滞后', cny_fund: '人民币基金 ｜ 净值滞后', total_ret: '总收益', today: '当日',
     fail_quote: '行情加载失败：',
     eye_hide: '隐藏金额', eye_show: '显示金额',
+    cash: '现金', set_cash: '录入现金', cash_usd: '现金余额（美元）', cash_cny: '现金余额（人民币）',
+    cash_saved: '现金已更新',
+    please_cash: '请填写有效的现金金额',
     hm_entry: '查看热力图', hm_title: '资产热力图', hm_usd: '美元', hm_cny: '人民币',
     hm_stock: '股票', hm_fund: '基金',
     hm_empty: '当前筛选下暂无持仓',
@@ -833,6 +861,9 @@ const I18N = {
     otc_fund: 'OTC Fund ｜ NAV lag', cny_fund: 'CNY Fund ｜ NAV lag', total_ret: 'Total', today: 'Today',
     fail_quote: 'Quote load failed: ',
     eye_hide: 'Hide amounts', eye_show: 'Show amounts',
+    cash: 'Cash', set_cash: 'Set Cash', cash_usd: 'Cash Balance (USD)', cash_cny: 'Cash Balance (CNY)',
+    cash_saved: 'Cash updated',
+    please_cash: 'Please enter a valid cash amount',
     hm_entry: 'Heatmap', hm_title: 'Asset Heatmap', hm_usd: 'USD', hm_cny: 'CNY',
     hm_stock: 'Stocks', hm_fund: 'Funds',
     hm_empty: 'Nothing to show',
@@ -888,6 +919,9 @@ let newsTags = [];   // News tab 领域 tag（持仓股票/基金行业，来自
 const eyeOpen = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 12S5 5.5 12 5.5 22.5 12 22.5 12 19 18.5 12 18.5 1.5 12 1.5 12z"/><circle cx="12" cy="12" r="3"/></svg>';
 const eyeClosed = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 12S5 5.5 12 5.5 22.5 12 22.5 12 19 18.5 12 18.5 1.5 12 1.5 12z"/><circle cx="12" cy="12" r="3"/><line x1="3" y1="3" x2="21" y2="21"/></svg>';
 
+/* 现金录入铅笔：规格与 .eye 一致（无底无框 / muted / 14px） */
+const icEdit = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
+
 const fmtCny = v => (v < 0 ? '-' : '') + '¥' + fmt(Math.abs(v));
 const fmtCnyS = v => (v < 0 ? '-' : '+') + '¥' + fmt(Math.abs(v));
 
@@ -901,6 +935,7 @@ function renderSummaryCn(t) {
     return;
   }
   const st = portfolio.stock_total_cn || {mv: 0, day_pnl: 0};
+  const cncash = portfolio.cash_cny || 0;
   const val = v => hideSec ? '****' : v;
   const cval = v => hideSec ? '' : cls(v);
   $('summary-cn').innerHTML = `
@@ -918,6 +953,11 @@ function renderSummaryCn(t) {
       <div class="label">${_t('day_pnl_cn')}</div>
       <div class="value sm ${cval(t.day_pnl)}">${val(fmtCnyS(t.day_pnl))}</div>
       <div class="hint ${cval(t.day_pnl)}">${val(fmtPct((t.mv - t.day_pnl) ? t.day_pnl / (t.mv - t.day_pnl) * 100 : 0))}</div>
+    </div>
+    <div class="summary-card pop-in">
+      <div class="label">${_t('cash')}${cashEditBtn('cn')}</div>
+      <div class="value sm">${val(fmtCny(cncash))}</div>
+      <div class="hint">${val('≈ $' + fmt(Math.round(cncash / portfolio.rate)))}</div>
     </div>`;
   $('cn-stk-nums').innerHTML = `
     <span class="num">${_t('total_mv')} ${val(fmtCny(st.mv))}</span>
@@ -991,6 +1031,11 @@ function renderSummary(t, rate) {
       <div class="label">${_t('day_pnl')}</div>
       <div class="value sm ${cval(t.day_pnl)}">${val(fmtMoneyS(t.day_pnl))}</div>
       <div class="hint ${cval(t.day_pnl)}">${val(fmtPct((t.mv - t.day_pnl) ? t.day_pnl / (t.mv - t.day_pnl) * 100 : 0))}</div>
+    </div>
+    <div class="summary-card pop-in">
+      <div class="label">${_t('cash')}${cashEditBtn()}</div>
+      <div class="value sm">${val(fmtMoney(portfolio.cash || 0))}</div>
+      <div class="hint">${val('≈ ¥' + Math.round((portfolio.cash || 0) * rate).toLocaleString())}</div>
     </div>`;
 }
 
@@ -1671,6 +1716,36 @@ async function submitEditStock() {
   } catch (e) { toast(_t('modify_failed') + e.message); }
 }
 
+/* 现金余额录入 → POST /api/cash → 写回 tpl["cash_usd"](market=us) 或 tpl["cash_cny"](market=cn)。
+   现金同时计入总资产与总成本，所以改现金只动总资产、不动盈亏。 */
+let cashMarket = 'us';
+function openCashModal(market) {
+  cashMarket = market || 'us';
+  const isCn = cashMarket === 'cn';
+  $('cash-unit').textContent = _t(isCn ? 'cash_cny' : 'cash_usd');
+  const cur = isCn ? ((portfolio && portfolio.cash_cny) || 0) : ((portfolio && portfolio.cash) || 0);
+  $('c-amt').value = cur;
+  $('cash-modal').style.display = 'flex';
+  setTimeout(() => $('c-amt').select(), 30);
+}
+function closeCashModal() { $('cash-modal').style.display = 'none'; }
+async function submitCash() {
+  const raw = $('c-amt').value;
+  const amt = parseFloat(raw);
+  if (raw === '' || isNaN(amt) || amt < 0) { toast(_t('please_cash')); return; }
+  try {
+    const r = await fetch('/api/cash', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({market: cashMarket, amount: amt})
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || '保存失败');
+    toast(_t('cash_saved') + ' ' + (cashMarket === 'cn' ? fmtCny(d.cash) : fmtMoney(d.cash)));
+    closeCashModal();
+    loadPortfolio();
+  } catch (e) { toast(_t('save_failed') + e.message); }
+}
+
 let addStockMarket = 'us';   // 添加股票的目标市场：us=仅美股 / cn=A股+港股
 
 function openAddModal(market) {
@@ -2040,6 +2115,11 @@ function hmEntryBtn() {
 function privacyEye() {
   return `<button class="eye" onclick="toggleSecNums()" title="${_t(hideSec ? 'eye_show' : 'eye_hide')}">`
     + (hideSec ? eyeClosed : eyeOpen) + '</button>';
+}
+
+/* 汇总卡「现金」标签后的铅笔：点击录入现金余额（market: us=美元 / cn=人民币） */
+function cashEditBtn(market) {
+  return `<button class="cash-edit" onclick="openCashModal('${market || 'us'}')" title="${_t('set_cash')}">${icEdit}</button>`;
 }
 
 function hmName(it) {
