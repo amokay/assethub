@@ -340,8 +340,12 @@
   /* 卡片宽度收缩到内容宽度：标题行右端的入口按钮才能与下方数字右边缘对齐 */
   /* 卡片不设 width: 在 grid 里默认 stretch 撑满整列 → 四张卡等宽、卡间距严格等于 gap(12px)。
      若用 fit-content，各卡内容宽度不同会让剩余空间堆在右侧，视觉间距从 37px 递增到 102px（不一致）。 */
-  .summary-card { padding: 12px 4px; overflow: visible; }
-  .summary-card .value { white-space: nowrap; }
+  /* 卡内纵向 flex：把「数值 + 副文案」当成一个底块钉在卡片底部。
+     四张卡的数值字号不同（总资产 30px / 后三张 22px），普通块流下数值顶部对齐、
+     底部就会各自错开 12px；margin-top:auto 把底块推到底后，数值底部严格落在同一水平线，
+     多出来的空隙自动落在标题与数值之间。 */
+  .summary-card { display: flex; flex-direction: column; padding: 12px 4px; overflow: visible; }
+  .summary-card .value { white-space: nowrap; margin-top: auto; }
   .summary-card .label, .summary-card .hint { white-space: nowrap; }
   .summary-card .label { color: var(--muted); font-size: 13px; margin-bottom: 6px;
                          display: flex; align-items: center; justify-content: space-between;
@@ -968,7 +972,7 @@ function renderSummaryCn(t) {
     <div class="summary-card pop-in">
       <div class="label">${_t('cash')}${cashEditBtn('cn')}</div>
       <div class="value sm">${val(fmtCny(cncash))}</div>
-      <div class="hint">${val('≈ $' + fmt(Math.round(cncash / portfolio.rate)))}</div>
+      <div class="hint">&nbsp;</div>
     </div>`;
   $('cn-stk-nums').innerHTML = `
     <span class="num">${_t('total_mv')} ${val(fmtCny(st.mv))}</span>
@@ -1046,7 +1050,7 @@ function renderSummary(t, rate) {
     <div class="summary-card pop-in">
       <div class="label">${_t('cash')}${cashEditBtn()}</div>
       <div class="value sm">${val(fmtMoney(portfolio.cash || 0))}</div>
-      <div class="hint">${val('≈ ¥' + Math.round((portfolio.cash || 0) * rate).toLocaleString())}</div>
+      <div class="hint">&nbsp;</div>
     </div>`;
 }
 
@@ -1267,19 +1271,23 @@ function renderFrames(meta) {
     <div class="summary-card">
       <div class="label">${_t('day_pnl')}</div>
       <div class="value sm" style="color:var(--muted)">--</div>
+      <div class="hint">&nbsp;</div>
     </div>`;
   $('summary-cn').innerHTML = `
     <div class="summary-card">
       <div class="label">${_t('rm_total')}</div>
       <div class="value" style="color:var(--muted)">--</div>
+      <div class="hint">&nbsp;</div>
     </div>
     <div class="summary-card">
       <div class="label">${_t('rm_day')}</div>
       <div class="value sm" style="color:var(--muted)">--</div>
+      <div class="hint">&nbsp;</div>
     </div>
     <div class="summary-card">
       <div class="label">${_t('total_assets')}${hmEntryBtn()}</div>
       <div class="value sm" style="color:var(--muted)">--</div>
+      <div class="hint">&nbsp;</div>
     </div>`;
   // 美股卡片框架
   const usStocks = (meta.stocks || []).filter(s => !/^(sh|sz|bj)/.test(s.code));
