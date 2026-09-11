@@ -1029,6 +1029,74 @@ def get_preference():
                 "rate": round(rate, 4)}
     return cache_get("preference", 45, build)
 
+# ---------- 资产热力图 ----------
+
+def _fund_day_pct(f):
+    """基金日涨跌幅（%）：优先 nav_hist 最后两点，回落 spark 末两点；无数据返回 None"""
+    hist = f.get("nav_hist") or {}
+    if len(hist) > 1:
+        ds = sorted(hist.keys())
+        a, b = hist.get(ds[-2]), hist.get(ds[-1])
+        if a and b and a > 0:
+            return round((b / a - 1) * 100, 2), ds[-1]
+    sp = f.get("spark") or []
+    if len(sp) > 1 and sp[-2] > 0:
+        nav_dates = f.get("nav_dates") or []
+        last = nav_dates[-1] if nav_dates else (f.get("nav_date") or "")
+        return round((sp[-1] / sp[-2] - 1) * 100, 2), last
+    return None, (f.get("nav_date") or "")
+
+def get_heatmap():
+    """资产热力图：股票 + 基金，美元/人民币统一折算成美元计价便于面积比较。
+    每个标的输出 行业(sector) / 市场(market) / 类型(kind) / 日涨跌幅(day_pct) / 市值(mv_usd)"""
+    def build():
+        pf = get_portfolio()
+        rate = float(pf.get("rate") or 7.0) or 7.0
+        as_of = pf.get("as_of") or ""
+        items = []
+
+        def add(code, name, kind, market, mv_local, day_pct, day_date):
+            if mv_local is None or mv_local <= 0:
+                return
+            mv_usd = mv_local / rate if market == "cn" else mv_local
+            items.append({
+                "code": code or "", "name": name or code or "",
+                "kind": kind,               # stock / fund
+                "market": market,           # us / cn
+                "cur": "CNY" if market == "cn" else "USD",
+                "mv_local": round(mv_local, 2),
+                "mv_usd": round(mv_usd, 2),
+                "day_pct": day_pct,         # 可能为 None（缺数据）
+                "day_date": day_date or "",
+                "sector": _sector_of(code, name),
+            })
+
+        for s in pf.get("stocks", []):
+            if s.get("miss"):
+                continue
+            add(s.get("code"), s.get("name"), "stock", "us",
+                s.get("mv"), s.get("chg_pct"), as_of)
+        for f in pf.get("funds", []):
+            pct, d = _fund_day_pct(f)
+            add(f.get("code"), f.get("name"), "fund", "us",
+                f.get("market_value"), pct, d)
+        for s in pf.get("stocks_cn", []):
+            if s.get("miss"):
+                continue
+            add(s.get("code"), s.get("name"), "stock", "cn",
+                s.get("mv"), s.get("chg_pct"), as_of)
+        for f in pf.get("funds_cny", []):
+            pct, d = _fund_day_pct(f)
+            add(f.get("code"), f.get("name"), "fund", "cn",
+                f.get("market_value"), pct, d)
+
+        # 排序：面积由大到小，热力图布局需要
+        items.sort(key=lambda x: -x["mv_usd"])
+        return {"as_of": as_of, "rate": round(rate, 4),
+                "total_usd": round(sum(i["mv_usd"] for i in items), 2),
+                "count": len(items), "items": items}
+    return cache_get("heatmap", 45, build)
+
 # ---------- 股票K线（hover 渐现） ----------
 
 def _session_progress(market):
@@ -1648,6 +1716,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(get_markets())
             elif path == "/api/preference":
                 self._json(get_preference())
+            elif path == "/api/heatmap":
+                self._json(get_heatmap())
             elif path == "/api/kline":
                 self._json(get_stock_klines())
             elif path == "/api/news":

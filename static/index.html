@@ -324,13 +324,102 @@
                  transition: left .25s cubic-bezier(.4,.2,.2,1), width .25s cubic-bezier(.4,.2,.2,1); }
   .empty-tip { color: var(--muted); text-align: center; padding: 60px 20px; font-size: 14px;
                line-height: 2; }
-  .summary-card { padding: 12px 4px; overflow: hidden; }
+  /* 卡片宽度收缩到内容宽度：标题行右端的入口按钮才能与下方数字右边缘对齐 */
+  .summary-card { padding: 12px 4px; overflow: visible; width: fit-content; }
   .summary-card .value { white-space: nowrap; }
   .summary-card .label, .summary-card .hint { white-space: nowrap; }
-  .summary-card .label { color: var(--muted); font-size: 13px; margin-bottom: 6px; }
+  .summary-card .label { color: var(--muted); font-size: 13px; margin-bottom: 6px;
+                         display: flex; align-items: center; justify-content: space-between;
+                         gap: 12px; }
   .summary-card .value { font-size: clamp(20px, 2.6vw, 30px); font-weight: 700; }
   .summary-card .value.sm { font-size: clamp(15px, 2.1vw, 22px); }
   .summary-card .hint { color: var(--muted); font-size: 11.5px; margin-top: 5px; }
+  /* 总资产标题右侧「查看热力图」入口（无边框，右对齐到下方数字右边缘） */
+  .hm-entry { background: rgba(47,129,247,.14); color: #6db0ff; border: 0;
+              border-radius: 999px; padding: 2px 9px; font-size: 11px; font-weight: 600;
+              cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
+              transition: background .15s, color .15s; white-space: nowrap;
+              font-family: inherit; line-height: 1.5; }
+  .hm-entry:hover { background: rgba(47,129,247,.3); color: #9ac9ff; }
+  .hm-entry svg { width: 11px; height: 11px; flex: none; }
+
+  /* ---------- 资产热力图（全屏浮层） ---------- */
+  .hm-mask { position: fixed; inset: 0; z-index: 90; background: rgba(8,8,10,.985);
+             display: none; flex-direction: column; padding: 16px 18px 18px; }
+  .hm-mask.open { display: flex; animation: hmFade .22s ease; }
+  @keyframes hmFade { from { opacity: 0 } to { opacity: 1 } }
+  .hm-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 0 2px 6px; }
+  .hm-title { font-size: 16px; font-weight: 700; letter-spacing: -.2px; }
+  .hm-title .cnt { font-size: 12px; font-weight: 500; color: var(--muted); margin-left: 8px; }
+  .hm-close { margin-left: auto; background: var(--card); color: var(--text);
+              border: 1px solid var(--border); border-radius: 8px; width: 30px; height: 28px;
+              cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+  .hm-close:hover { background: var(--card-hover); }
+  .hm-close svg { width: 14px; height: 14px; }
+  .hm-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+            padding: 0 2px 12px; }
+  /* 顶部筛选：与页面通用控件同一套规格（新闻标签 .tab：8px 圆角 + 发丝描边 + 12px 字号，
+     选中态用页面统一的「白底深字」激活样式），不再自成一套胶囊风 */
+  .hm-chk { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600;
+            color: var(--muted); background: transparent; border: 1px solid var(--border);
+            border-radius: 8px; padding: 4px 12px; cursor: pointer; user-select: none;
+            font-family: inherit; transition: all .15s; }
+  .hm-chk:hover { color: var(--text); border-color: rgba(255,255,255,.2); }
+  .hm-chk.on { background: #fff; color: #1c1c1e; border-color: #fff; }
+  /* 市场筛选（美元/人民币）与类型筛选（基金）之间的分隔线 */
+  .hm-sep { width: 1px; height: 16px; background: var(--border); flex: none; }
+  /* 自绘勾选框，替掉系统默认的蓝色方框（页面里没有原生表单控件） */
+  .hm-chk input { -webkit-appearance: none; appearance: none; width: 13px; height: 13px;
+                  margin: 0; flex: none; cursor: pointer; border-radius: 4px;
+                  border: 1.5px solid var(--muted); background-color: transparent;
+                  background-repeat: no-repeat; background-position: center;
+                  transition: background-color .15s, border-color .15s; }
+  .hm-chk:hover input { border-color: var(--text); }
+  .hm-chk input:checked { border-color: currentColor; background-color: currentColor;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.4 8.4l3.1 3.1L12.6 5' fill='none' stroke='%23fff' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-size: 9px 9px; }
+  /* 配色翻转按钮沿用页面 .refresh 的规格 */
+  .hm-flip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px;
+             color: var(--text); background: var(--card); border: 1px solid var(--border);
+             border-radius: 8px; padding: 5px 12px; cursor: pointer; user-select: none;
+             font-family: inherit; transition: background .15s; }
+  .hm-flip:hover { background: var(--card-hover); }
+  .hm-flip svg { width: 13px; height: 13px; flex: none; }
+  .hm-legend { margin-left: auto; display: inline-flex; align-items: center; gap: 7px;
+               font-size: 11px; color: var(--muted); white-space: nowrap; }
+  /* 图例：参考图同款 8 级离散色阶 */
+  .hm-legend .ramp { display: flex; height: 9px; width: auto; overflow: hidden; }
+  .hm-legend .ramp i { display: block; width: 15px; height: 100%; }
+  .hm-tip { font-size: 11px; color: var(--muted); opacity: .75; padding: 0 2px 10px; }
+  /* 画布底色 = 参考图 #171419，方块之间留 1.5px 暗色缝 */
+  .hm-stage { position: relative; flex: 1; min-height: 0; background: #171419; }
+  .hm-cell { position: absolute; border-radius: 0; overflow: hidden; cursor: pointer;
+             display: flex; flex-direction: column; align-items: center; justify-content: center;
+             gap: 0; text-align: center; padding: 1px 2px; color: #fff;
+             border: none; font-weight: 700;
+             transition: left .42s cubic-bezier(.3,.7,.3,1), top .42s cubic-bezier(.3,.7,.3,1),
+                         width .42s cubic-bezier(.3,.7,.3,1), height .42s cubic-bezier(.3,.7,.3,1),
+                         box-shadow .16s, filter .16s, opacity .28s ease; }
+  .hm-cell:hover { box-shadow: inset 0 0 0 2px #fff; filter: brightness(1.16); z-index: 9; }
+  .hm-cell .nm, .hm-cell .ch { font-weight: 700; max-width: 100%; letter-spacing: -.1px;
+                               line-height: 1.1; white-space: nowrap; }
+  .hm-cell.enter { animation: hmCellIn .34s cubic-bezier(.2,.7,.3,1); }
+  @keyframes hmCellIn { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
+  .hm-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+              color: var(--muted); font-size: 13px; }
+  /* hover 详情浮标 */
+  .hm-pop { position: fixed; z-index: 95; background: rgba(28,28,31,.97); color: var(--text);
+            border: 1px solid var(--border); border-radius: 9px; padding: 8px 10px; font-size: 11.5px;
+            pointer-events: none; opacity: 0; transition: opacity .12s; max-width: 260px;
+            box-shadow: 0 8px 26px rgba(0,0,0,.5); line-height: 1.55; }
+  .hm-pop.show { opacity: 1; }
+  .hm-pop b { font-size: 12.5px; }
+  .hm-pop .row { display: flex; justify-content: space-between; gap: 14px; color: var(--muted); }
+  .hm-pop .row i { font-style: normal; color: var(--text); font-weight: 600; }
+  @media (max-width: 620px) {
+    .hm-mask { padding: 12px 10px 14px; }
+    .hm-legend { display: none; }
+  }
   .eye { background: none; border: none; cursor: pointer; padding: 0; margin-left: 5px;
          display: inline-flex; align-items: center; color: var(--muted);
          vertical-align: middle; position: relative; top: -1px; }
@@ -514,6 +603,41 @@
     <span>News</span>
   </button>
 </nav>
+<!-- 资产热力图浮层：面积=市值（折美元），颜色=日涨跌幅 -->
+<div class="hm-mask" id="hm-mask">
+  <div class="hm-head">
+    <div class="hm-title" id="hm-title"></div>
+    <button class="hm-close" onclick="closeHeatmap()" aria-label="close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="hm-bar">
+    <label class="hm-chk on" id="hm-chk-us">
+      <input type="checkbox" checked onchange="hmSetMarket('us', this.checked)">
+      <span data-i18n="hm_usd">美元</span>
+    </label>
+    <label class="hm-chk on" id="hm-chk-cn">
+      <input type="checkbox" checked onchange="hmSetMarket('cn', this.checked)">
+      <span data-i18n="hm_cny">人民币</span>
+    </label>
+    <span class="hm-sep"></span>
+    <label class="hm-chk on" id="hm-chk-fd" title="">
+      <input type="checkbox" checked onchange="hmSetFund(this.checked)">
+      <span data-i18n="hm_fund">基金</span>
+    </label>
+    <button class="hm-flip" id="hm-flip" onclick="toggleColorMode()" title="切换涨跌配色">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M7 4v12M7 20l-3-3M7 20l3-3M17 20V8M17 4l-3 3M17 4l3 3"/></svg>
+      <span id="hm-flip-label"></span>
+    </button>
+    <div class="hm-legend">
+      <span id="hm-leg-lo"></span><span class="ramp" id="hm-ramp"></span><span id="hm-leg-hi"></span>
+    </div>
+  </div>
+  <div class="hm-tip" id="hm-tip"></div>
+  <div class="hm-stage" id="hm-stage"></div>
+</div>
+<div class="hm-pop" id="hm-pop"></div>
 <div class="modal-mask" id="add-modal" onclick="if(event.target===this)closeAddModal()">
   <div class="modal">
     <h3 data-i18n="add_stock">手动添加持仓</h3>
@@ -647,6 +771,11 @@ const I18N = {
     kw_none: '相关新闻', search_src: '东方财富检索',
     otc_fund: '场外基金 ｜ 净值滞后', cny_fund: '人民币基金 ｜ 净值滞后', total_ret: '总收益', today: '当日',
     fail_quote: '行情加载失败：',
+    hm_entry: '查看热力图', hm_title: '资产热力图', hm_usd: '美元', hm_cny: '人民币',
+    hm_stock: '股票', hm_fund: '基金',
+    hm_area_tip: '面积 = 市值（折美元）　颜色 = 日涨跌幅', hm_empty: '当前筛选下暂无持仓',
+    hm_load_failed: '热力图加载失败：', hm_mv: '市值', hm_chg: '日涨跌', hm_navdate: '净值日',
+    hm_switch_all: '全选', hm_switch_none: '全不选',
   },
   en: {
     refresh: 'Refresh', us_market: 'USD', cn_market: 'CNY', loading_news: 'Loading news…', slogan: 'Track your assets with ease',
@@ -673,6 +802,11 @@ const I18N = {
     kw_none: 'related news', search_src: 'Eastmoney search',
     otc_fund: 'OTC Fund ｜ NAV lag', cny_fund: 'CNY Fund ｜ NAV lag', total_ret: 'Total', today: 'Today',
     fail_quote: 'Quote load failed: ',
+    hm_entry: 'Heatmap', hm_title: 'Asset Heatmap', hm_usd: 'USD', hm_cny: 'CNY',
+    hm_stock: 'Stocks', hm_fund: 'Funds',
+    hm_area_tip: 'Area = market value (USD)　Color = day change', hm_empty: 'Nothing to show',
+    hm_load_failed: 'Heatmap load failed: ', hm_mv: 'MV', hm_chg: 'Day', hm_navdate: 'NAV date',
+    hm_switch_all: 'All', hm_switch_none: 'None',
   }
 };
 const SEC_EN = { '半导体': 'Semis', '科技互联网': 'Internet & Tech', '科技硬件': 'Hardware', '汽车新能源': 'EV & Energy', '军工航天': 'Aero & Defense', '公用事业': 'Utilities', '通信': 'Telecom', '金融价值': 'Financials', '其他': 'Others' };
@@ -740,7 +874,7 @@ function renderSummaryCn(t) {
   const cval = v => hideSec ? '' : cls(v);
   $('summary-cn').innerHTML = `
     <div class="summary-card pop-in">
-      <div class="label">${_t('total_assets')}</div>
+      <div class="label">${_t('total_assets')}${hmEntryBtn()}</div>
       <div class="value">${val(fmtCny(t.mv))}</div>
       <div class="hint">≈ $${val(fmt(Math.round(t.mv / portfolio.rate)))}</div>
     </div>
@@ -813,7 +947,7 @@ function renderSummary(t, rate) {
   const cval = v => hideSec ? '' : cls(v);
   $('summary').innerHTML = `
     <div class="summary-card pop-in">
-      <div class="label">${_t('total_assets')}</div>
+      <div class="label">${_t('total_assets')}${hmEntryBtn()}</div>
       <div class="value">${val(fmtMoney(t.mv))}</div>
       <div class="hint">${val('≈ ¥' + Math.round(t.mv_cny).toLocaleString())}</div>
     </div>
@@ -839,6 +973,8 @@ function applyColorMode() {
   sw.classList.toggle('mode-up-green', upGreen);
   sw.classList.toggle('mode-up-red', !upGreen);
   $('cs-label').textContent = upGreen ? _t('upgreen') : _t('upred');
+  // 热力图若开着，底色与图例同步反转
+  if ($('hm-mask') && $('hm-mask').classList.contains('open')) { hmApplyStatic(); hmDraw(); }
 }
 
 function toggleColorMode() {
@@ -1032,7 +1168,7 @@ function renderFrames(meta) {
   // 总资产 / 核心指标先占位，数据到达后动效填充
   $('summary').innerHTML = `
     <div class="summary-card">
-      <div class="label">${_t('total_assets')}</div>
+      <div class="label">${_t('total_assets')}${hmEntryBtn()}</div>
       <div class="value" style="color:var(--muted)">--</div>
       <div class="hint" style="color:var(--muted)">--</div>
     </div>
@@ -1055,7 +1191,7 @@ function renderFrames(meta) {
       <div class="value sm" style="color:var(--muted)">--</div>
     </div>
     <div class="summary-card">
-      <div class="label">${_t('total_assets')}</div>
+      <div class="label">${_t('total_assets')}${hmEntryBtn()}</div>
       <div class="value sm" style="color:var(--muted)">--</div>
     </div>`;
   // 美股卡片框架
@@ -1838,6 +1974,372 @@ setInterval(loadMarkets, 30000);     // 核心指标同步刷新
 setInterval(loadPreference, 86400000);  // 投资偏好每日刷新（行业占比变化不大）
 setInterval(loadTicker, 300000);      // 滚动新闻 5 分钟更新
 setInterval(loadMarketNewsIfActive, 300000);
+/* ==================== 资产热力图 ==================== */
+/* 面积 = 市值（人民币按汇率折美元，便于跨市场比较）；颜色 = 日涨跌幅（跟随涨红跌绿设置） */
+let hmData = null;                    // /api/heatmap 数据
+/* 顶部 checkbox：市场（美元/人民币）+ 类型（基金）。
+   语义 = 「勾选的都会显示」：取消基金 → 只看股票；两个市场都取消、只留基金 → 只看基金。 */
+const hmOn = { us: true, cn: true, fund: true };
+const hmAnyOn = () => hmOn.us || hmOn.cn || hmOn.fund;
+const hmCells = new Map();            // key → DOM（复用元素，位移走 CSS 过渡）
+let hmIndex = new Map();              // key → item（hover 详情）
+
+/* 基金热力图短名（全名太长会撑爆方块） */
+const HM_SHORT_ZH = {
+  'LU0056508442': '贝莱德世界科技', 'LU0109392836': '富兰克林科技', 'LU0997587083': '富达日本价值',
+  '017436': '华宝纳斯达克', '005844': '东方人工智能', '021533': '天弘半导体', '001956': '国联安科动力',
+};
+const HM_SHORT_EN = {
+  'LU0056508442': 'BlackRock Tech', 'LU0109392836': 'Franklin Tech', 'LU0997587083': 'Fidelity Japan',
+  '017436': 'Hwabao Nasdaq', '005844': 'Orient AI', '021533': 'Tianhong Semi', '001956': 'GLD Tech',
+};
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
+  c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* 总资产标题右侧入口按钮 */
+function hmEntryBtn() {
+  return `<button class="hm-entry" onclick="openHeatmap()" title="${_t('hm_title')}">`
+    + `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`
+    + `<rect x="3" y="3" width="8" height="8" rx="1.2"/><rect x="13.5" y="3" width="7.5" height="4.5" rx="1.2"/>`
+    + `<rect x="13.5" y="10" width="7.5" height="11" rx="1.2"/><rect x="3" y="13.5" width="8" height="7.5" rx="1.2"/></svg>`
+    + `${_t('hm_entry')}</button>`;
+}
+
+function hmName(it) {
+  if (it.kind === 'stock') return (lang === 'en' && STOCK_EN[it.code]) || it.name;
+  return ((lang === 'en' ? HM_SHORT_EN : HM_SHORT_ZH)[it.code]) || it.name;
+}
+
+/* ---- 配色：参考图同款 8 级离散色阶（每 1 个百分档一色，±3% 封顶）----
+   跌：#5f260f → #832e0a → #a83706 → #cb4000     涨：#0d4c45 → #0a695b → #028570 → #00a186
+   方向跟随「涨红跌绿 / 涨绿跌红」一键切换（upGreen） */
+const HM_RED = ['#5f260f', '#832e0a', '#a83706', '#cb4000'];
+const HM_GREEN = ['#0d4c45', '#0a695b', '#028570', '#00a186'];
+const HM_NODATA = '#4d4d59';
+function hmBg(pct) {
+  if (pct === null || pct === undefined || isNaN(pct)) return HM_NODATA;
+  const idx = Math.min(3, Math.floor(Math.abs(pct)));   // 0~1% → 0 档，1~2% → 1 档……
+  const warm = upGreen ? (pct < 0) : (pct >= 0);        // 该用红色阶吗
+  return (warm ? HM_RED : HM_GREEN)[idx];
+}
+/* 参考图数值写法：正数不带 +，去掉末尾多余 0，至少保留 1 位小数 */
+function hmPctTxt(p) {
+  let s = Number(p).toFixed(2);
+  if (s.endsWith('0')) s = s.slice(0, -1);
+  if (s.endsWith('.')) s = s.slice(0, -1);
+  return s + '%';
+}
+
+/* ---- squarified treemap：把一组面积值铺满矩形，块尽量接近正方形 ---- */
+function hmWorst(row, longSide) {
+  const s = row.reduce((a, c) => a + c.area, 0);
+  if (s <= 0 || longSide <= 0) return Infinity;
+  const th = s / longSide;
+  let worst = 0;
+  for (const it of row) {
+    const len = it.area / th;
+    if (len <= 0 || th <= 0) continue;
+    const r = Math.max(len / th, th / len);
+    if (r > worst) worst = r;
+  }
+  return worst;
+}
+function squarifyRects(nodes, W, H) {
+  const out = [];
+  if (!nodes.length || W <= 0 || H <= 0) return out;
+  const total = nodes.reduce((s, n) => s + n.area, 0);
+  if (total <= 0) return out;
+  const scale = (W * H) / total;
+  const items = nodes.map(n => ({ ref: n.ref, area: Math.max(0, n.area) * scale }))
+                     .filter(n => n.area > 0);
+  let x = 0, y = 0, w = W, h = H, i = 0;
+  while (i < items.length && w > 0.4 && h > 0.4) {
+    // 关键：横切 / 竖切都试一遍，选"最坏的块长宽比更小"的那个方向
+    // （只按 w>=h 决定方向的话，占比大的标的会被拉成横贯整屏的长条）
+    let row = null, j = i, horizontal = true, lastWorst = Infinity;
+    for (const horiz of [true, false]) {
+      const longSide = horiz ? w : h;
+      let cand = [items[i]], k = i + 1, cw = hmWorst(cand, longSide);
+      while (k < items.length) {
+        const next = cand.concat([items[k]]);
+        const wr = hmWorst(next, longSide);
+        if (wr <= cw) { cand = next; cw = wr; k++; } else break;
+      }
+      if (cw < lastWorst) { row = cand; j = k; horizontal = horiz; lastWorst = cw; }
+    }
+    const rowArea = row.reduce((s, c) => s + c.area, 0);
+    const longSide = horizontal ? w : h;
+    const thick = Math.min(rowArea / longSide, horizontal ? h : w);
+    if (horizontal) {
+      let cx = x;
+      for (const it of row) {
+        const cw = (it.area / rowArea) * w;
+        out.push({ ref: it.ref, x: cx, y, w: Math.max(0, cw), h: Math.max(0, thick) });
+        cx += cw;
+      }
+      y += thick; h -= thick;
+    } else {
+      let cy = y;
+      for (const it of row) {
+        const chh = (it.area / rowArea) * h;
+        out.push({ ref: it.ref, x, y: cy, w: Math.max(0, thick), h: Math.max(0, chh) });
+        cy += chh;
+      }
+      x += thick; w -= thick;
+    }
+    i = j;
+  }
+  return out;
+}
+
+/* 布局好坏评分：长条越严重、方块越大，扣分越多（"尽量组成方块，不要长条"） */
+function hmLayoutScore(rects) {
+  let s = 0;
+  for (const r of rects) {
+    const a = Math.max(r.w, 0.01), b = Math.max(r.h, 0.01);
+    const ratio = Math.max(a / b, b / a);
+    const d = Math.max(0, ratio - 1.15);          // 1.15 以内算合格的方块，不扣分
+    s += d * d * (a * b);                          // 面积加权：大方块更该方
+  }
+  return s;
+}
+/* 试多种排布顺序，取"最不像长条"的那一版 */
+function hmBestLayout(items, W, H) {
+  const byArea = items.slice().sort((a, b) => b.area - a.area);
+  const alt = [];
+  for (let i = 0, j = byArea.length - 1; i <= j; i++, j--) {
+    alt.push(byArea[i]);
+    if (i < j) alt.push(byArea[j]);
+  }
+  const cands = [byArea, alt, byArea.slice().reverse()];
+  let best = null, bestScore = Infinity;
+  for (const c of cands) {
+    const rects = squarifyRects(c, W, H);
+    if (rects.length !== c.length) continue;        // 有方块被吞掉 → 直接淘汰
+    const sc = hmLayoutScore(rects);
+    if (sc < bestScore) { bestScore = sc; best = rects; }
+  }
+  return best || squarifyRects(byArea, W, H);
+}
+
+/* 文本宽度：用 canvas 按真实字体精确测量（比按字符猜 em 可靠，长英文名不会被裁掉尾巴） */
+let hmCtx = null;
+function hmMeasure(str, fs) {
+  if (!hmCtx) {
+    hmCtx = document.createElement('canvas').getContext('2d');
+    hmCtx._fam = getComputedStyle(document.body).fontFamily || 'sans-serif';
+  }
+  hmCtx.font = '700 ' + fs.toFixed(1) + 'px ' + hmCtx._fam;
+  return hmCtx.measureText(str).width;
+}
+/* 参考图排版：名称一行 + 涨幅一行，均加粗居中不换行，字号随方块自适应 */
+const HM_FS_MAX = 29;                 // 上限：大块字号不超此值
+const HM_FS_MIN = 6.4;
+function fitHmText(name, chg, w, h) {
+  const aw = Math.max(4, w - 5), ah = Math.max(4, h - 3);
+  const perPx = t => hmMeasure(t, 100) / 100;              // 每 1px 字号对应的宽度
+  const fit = t => Math.min(aw / Math.max(0.05, perPx(t)),
+                            aw / Math.max(0.05, perPx(chg) * 1.08),
+                            ah / 2.34, HM_FS_MAX);
+  let label = name, fs = fit(label);
+  if (fs < HM_FS_MIN + 0.6 && name.length > 1) {            // 放不下 → 截断加省略号
+    let cut = name;
+    while (cut.length > 1 && fit(cut + '…') < HM_FS_MIN + 0.6) cut = cut.slice(0, -1);
+    label = cut === name ? name : cut.replace(/\s+$/, '') + '…';
+    fs = fit(label);
+  }
+  fs = Math.max(HM_FS_MIN, fs);
+  const showName = aw >= 11 && ah >= 11;
+  const showCh = ah >= 26 && aw >= 34;
+  return { fsN: fs, fsC: fs * 1.08, label, showName, showCh };
+}
+
+function hmApplyStatic() {
+  $('hm-title').innerHTML = esc(_t('hm_title')) + '<span class="cnt" id="hm-cnt"></span>';
+  $('hm-tip').textContent = _t('hm_area_tip');
+  $('hm-leg-lo').textContent = lang === 'en' ? 'Down' : '跌';
+  $('hm-leg-hi').textContent = lang === 'en' ? 'Up' : '涨';
+  // 图例 = 参考图同款 8 级离散色阶（左跌右涨，随配色一键切换翻转）
+  const downRamp = upGreen ? HM_RED : HM_GREEN;
+  const upRamp = upGreen ? HM_GREEN : HM_RED;
+  $('hm-ramp').innerHTML = downRamp.slice().reverse().concat(upRamp)
+    .map(c => `<i style="background:${c}"></i>`).join('');
+  $('hm-chk-us').classList.toggle('on', hmOn.us);
+  $('hm-chk-cn').classList.toggle('on', hmOn.cn);
+  $('hm-chk-fd').classList.toggle('on', hmOn.fund);
+  const noMkt = !hmOn.us && !hmOn.cn;
+  const en = lang === 'en';
+  $('hm-chk-fd').title = !hmOn.fund
+    ? (en ? 'Funds hidden — check to restore' : '已隐藏基金，勾选恢复')
+    : noMkt
+      ? (en ? 'Funds only — check USD/CNY to add stocks' : '只看基金；勾选美元/人民币可加入股票')
+      : (en ? 'Uncheck to show stocks only' : '取消勾选只看股票');
+  const fl = $('hm-flip-label');
+  if (fl) fl.textContent = upGreen ? _t('upgreen') : _t('upred');
+  document.documentElement.style.overflow = $('hm-mask').classList.contains('open') ? 'hidden' : '';
+}
+
+
+async function openHeatmap() {
+  $('hm-mask').classList.add('open');
+  hmApplyStatic();
+  if (hmData) requestAnimationFrame(hmDraw);
+  else $('hm-stage').innerHTML = '<div class="hm-empty">' + _t('loading') + '</div>';
+  try {
+    hmData = await api('/api/heatmap');
+    requestAnimationFrame(hmDraw);
+  } catch (e) {
+    if (!hmData) $('hm-stage').innerHTML = '<div class="hm-empty">' + esc(_t('hm_load_failed') + (e.message || '')) + '</div>';
+  }
+}
+function closeHeatmap() {
+  $('hm-mask').classList.remove('open');
+  $('hm-pop').classList.remove('show');
+  $('hm-pop').dataset.k = '';
+  document.documentElement.style.overflow = '';
+}
+function hmSetMarket(k, on) {
+  hmOn[k] = !!on;
+  // 至少保留一个筛选项，避免空视图
+  if (!hmAnyOn()) { hmOn[k] = true; $('hm-chk-' + k).querySelector('input').checked = true; }
+  hmApplyStatic();
+  hmDraw();
+}
+function hmSetFund(on) {
+  hmOn.fund = !!on;
+  if (!hmAnyOn()) { hmOn.fund = true; $('hm-chk-fd').querySelector('input').checked = true; }
+  hmApplyStatic();
+  hmDraw();
+}
+function hmPaintCell(el, it, w, h) {
+  const pct = it.day_pct;
+  const has = !(pct === null || pct === undefined || isNaN(pct));
+  const chg = has ? hmPctTxt(pct) : '—';
+  const f = fitHmText(hmName(it), chg, w, h);
+  el.innerHTML =
+    (f.showName ? `<div class="nm" style="font-size:${f.fsN.toFixed(1)}px">${esc(f.label)}</div>` : '')
+    + (f.showCh ? `<div class="ch" style="font-size:${f.fsC.toFixed(1)}px">${chg}</div>` : '');
+}
+
+/* 筛选规则：股票看市场勾选；基金看「基金」勾选，市场按基金所属市场判断；
+   两个市场都取消时市场过滤让位给「基金」→ 结果就是全部基金（只看基金） */
+function hmShow(i) {
+  if (i.kind === 'fund') return hmOn.fund && (!hmOn.us && !hmOn.cn || hmOn[i.market]);
+  return hmOn[i.market];
+}
+
+/* 扁平布局：全部标的（美元+人民币）铺成一张图，不分组 */
+function hmDraw() {
+  const stage = $('hm-stage');
+  if (!hmData || !stage) return;
+  const W = stage.clientWidth, H = stage.clientHeight;
+  if (W < 20 || H < 20) return;
+  const items = (hmData.items || []).filter(i => hmShow(i) && i.mv_usd > 0);
+  const totalMv = items.reduce((s, i) => s + i.mv_usd, 0);
+
+  const oldEmpty = stage.querySelector('.hm-empty');
+  if (oldEmpty) oldEmpty.remove();
+  const cnt = $('hm-cnt');
+  if (cnt) cnt.textContent = items.length ? `${items.length} · ≈ $${fmt(Math.round(totalMv))}` : '';
+  if (!items.length) {
+    hmCells.forEach(el => el.remove());
+    hmCells.clear();
+    stage.innerHTML = '<div class="hm-empty">' + esc(_t('hm_empty')) + '</div>';
+    return;
+  }
+
+  const GAP = 1.5;                                  // 参考图同款细缝
+  const rects = hmBestLayout(items.map(it => ({ ref: it, area: it.mv_usd })), W, H);
+  const alive = new Set();
+  hmIndex = new Map();
+
+  for (const r of rects) {
+    const it = r.ref;
+    const key = it.market + '|' + it.code + '|' + it.kind;
+    alive.add(key);
+    hmIndex.set(key, it);
+    const x = r.x + GAP / 2, y = r.y + GAP / 2;
+    const w = Math.max(0, r.w - GAP), h = Math.max(0, r.h - GAP);
+    let el = hmCells.get(key);
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'hm-cell enter';
+      el.dataset.hmk = key;
+      // 首帧先落到目标位置再淡入，避免从 (0,0) 飞入
+      el.style.left = x + 'px';
+      el.style.top = y + 'px';
+      el.style.width = w + 'px';
+      el.style.height = h + 'px';
+      stage.appendChild(el);
+      hmCells.set(key, el);
+      requestAnimationFrame(() => el.classList.remove('enter'));
+    } else {
+      el.style.left = x + 'px';
+      el.style.top = y + 'px';
+      el.style.width = w + 'px';
+      el.style.height = h + 'px';
+    }
+    el.style.background = hmBg(it.day_pct);
+    hmPaintCell(el, it, w, h);
+  }
+  for (const [k, el] of hmCells) { if (!alive.has(k)) { el.remove(); hmCells.delete(k); } }
+}
+
+function hmShowPop(el, ev) {
+  const it = hmIndex.get(el.dataset.hmk);
+  if (!it) return;
+  const pop = $('hm-pop');
+  const pct = it.day_pct;
+  const has = !(pct === null || pct === undefined || isNaN(pct));
+  const sym = it.cur === 'CNY' ? '¥' : '$';
+  const mv = sym + fmt(it.mv_local)
+    + (it.cur === 'CNY' ? ` <span style="color:var(--muted)">≈ $${fmt(Math.round(it.mv_usd))}</span>` : '');
+  const c = cls(pct);
+  const col = !has ? 'var(--muted)' : (c === 'up' ? 'var(--up)' : c === 'down' ? 'var(--down)' : 'var(--text)');
+  pop.innerHTML = `<b>${esc(hmName(it))}</b>`
+    + `<div class="row"><span>${esc(it.code)}</span><i>${it.kind === 'fund' ? _t('funds') : _t('stocks')}</i></div>`
+    + `<div class="row"><span>${_t('hm_mv')}</span><i>${mv}</i></div>`
+    + `<div class="row"><span>${_t('hm_chg')}</span><i style="color:${col}">`
+    + `${has ? ((pct >= 0 ? '+' : '') + pct.toFixed(2) + '%') : '—'}</i></div>`
+    + (it.day_date
+        ? `<div class="row"><span>${it.kind === 'fund' ? _t('hm_navdate') : _t('updated')}</span><i>${esc(it.day_date)}</i></div>`
+        : '');
+  pop.classList.add('show');
+  hmMovePop(ev);
+}
+function hmMovePop(ev) {
+  const pop = $('hm-pop');
+  const w = pop.offsetWidth, h = pop.offsetHeight, pad = 14;
+  let x = ev.clientX + pad, y = ev.clientY + pad;
+  if (x + w > innerWidth - 8) x = ev.clientX - w - pad;
+  if (y + h > innerHeight - 8) y = ev.clientY - h - pad;
+  pop.style.left = Math.max(8, x) + 'px';
+  pop.style.top = Math.max(8, y) + 'px';
+}
+
+(function bindHeatmap() {
+  const stage = $('hm-stage');
+  if (!stage) return;
+  stage.addEventListener('mousemove', ev => {
+    const pop = $('hm-pop');
+    const cell = ev.target && ev.target.closest ? ev.target.closest('.hm-cell') : null;
+    if (!cell) { pop.classList.remove('show'); pop.dataset.k = ''; return; }
+    if (!pop.classList.contains('show') || pop.dataset.k !== cell.dataset.hmk) {
+      hmShowPop(cell, ev);
+      pop.dataset.k = cell.dataset.hmk;
+    } else hmMovePop(ev);
+  });
+  stage.addEventListener('mouseleave', () => {
+    $('hm-pop').classList.remove('show');
+    $('hm-pop').dataset.k = '';
+  });
+  window.addEventListener('keydown', ev => {
+    if (ev.key === 'Escape' && $('hm-mask').classList.contains('open')) closeHeatmap();
+  });
+  window.addEventListener('resize', () => {
+    if ($('hm-mask').classList.contains('open')) { hmApplyStatic(); hmDraw(); }
+  });
+})();
 </script>
 </body>
 </html>
