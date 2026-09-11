@@ -2018,14 +2018,11 @@ function hmPctTxt(p) {
   return s + '%';
 }
 
-/* 标题旁的总市值用缩略写法（$422.6K / $1.23M）：
-   六位精确整数摆在标题行里既长又与「≈」的模糊语义相冲 */
-function hmShortUsd(v) {
-  const trim = s => s.replace(/\.0+$/, '').replace(/(\.\d)0$/, '$1');
-  const a = Math.abs(v);
-  if (a >= 1e6) return trim((v / 1e6).toFixed(2)) + 'M';
-  if (a >= 1e3) return trim((v / 1e3).toFixed(1)) + 'K';
-  return String(Math.round(v));
+/* 标题旁总市值：美元与人民币全额并列（$422,620 ≈ ¥2,838,357）。
+   不用 K/M 缩略 —— 缩略后还要读者自己换算量级，反而看不懂；
+   千分位分隔的整数一眼能读出数量级。 */
+function hmMoney(v, sign) {
+  return sign + Math.round(v).toLocaleString('en-US');
 }
 
 /* ---- squarified treemap：把一组面积值铺满矩形，块尽量接近正方形 ---- */
@@ -2247,12 +2244,17 @@ function hmDraw() {
   const W = stage.clientWidth, H = stage.clientHeight;
   if (W < 20 || H < 20) return;
   const items = (hmData.items || []).filter(i => hmShow(i) && i.mv_usd > 0);
-  const totalMv = items.reduce((s, i) => s + i.mv_usd, 0);
+  const rate = Number(hmData.rate) || 7;
+  /* 美元侧直接取 mv_usd；人民币侧用原币 mv_local，
+     避免「人民币 → 美元 → 人民币」两趟折算把误差放大 */
+  const totalUsd = items.reduce((s, i) => s + i.mv_usd, 0);
+  const totalCny = items.reduce((s, i) => s + (i.cur === 'CNY' ? i.mv_local : i.mv_usd * rate), 0);
 
   const oldEmpty = stage.querySelector('.hm-empty');
   if (oldEmpty) oldEmpty.remove();
   const cnt = $('hm-cnt');
-  if (cnt) cnt.textContent = items.length ? `${items.length} · ≈ $${hmShortUsd(Math.round(totalMv))}` : '';
+  if (cnt) cnt.textContent = items.length
+    ? `${hmMoney(totalUsd, '$')} ≈ ${hmMoney(totalCny, '¥')}` : '';
   if (!items.length) {
     hmCells.forEach(el => el.remove());
     hmCells.clear();
