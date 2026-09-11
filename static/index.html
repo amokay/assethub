@@ -362,14 +362,15 @@
               cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
   .hm-close:hover { background: var(--card-hover); }
   .hm-close svg { width: 14px; height: 14px; }
-  /* 负 margin 抵消首个 .hm-chk 的 12px 左内边距，让勾选框方框与标题「资」字左缘对齐
-     （只在左侧外扩 12px，右缘不动，图例的 margin-left:auto 不受影响） */
-  .hm-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-            padding: 0 2px 12px; margin-left: -12px; }
+  /* 三个筛选项的间距整体减半：盒子间隙 8 → 4、文字到下一个勾选框 32 → 16。
+     负 margin 同步由 -12 改为 -6，继续抵消首个 .hm-chk 的左内边距，
+     保证勾选框方框仍与标题「资」字左缘对齐（只在左侧外扩，右缘与图例不受影响） */
+  .hm-bar { display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+            padding: 0 2px 12px; margin-left: -6px; }
   /* 顶部筛选：无外边框、无底色；选中态靠「勾选框实心 + 文字提亮」表达 */
   .hm-chk { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600;
             color: var(--muted); background: transparent;
-            padding: 4px 12px; cursor: pointer; user-select: none;
+            padding: 4px 6px; cursor: pointer; user-select: none;
             font-family: inherit; transition: color .15s; }
   .hm-chk:hover { color: var(--text); }
   .hm-chk.on { color: var(--text); }
@@ -390,7 +391,6 @@
   /* 图例：参考图同款 8 级离散色阶 */
   .hm-legend .ramp { display: flex; height: 9px; width: auto; overflow: hidden; }
   .hm-legend .ramp i { display: block; width: 15px; height: 100%; }
-  .hm-tip { font-size: 11px; color: var(--muted); opacity: .75; padding: 0 2px 10px; }
   /* 画布底色 = 参考图 #171419，方块之间留 1.5px 暗色缝 */
   .hm-stage { position: relative; flex: 1; min-height: 0; background: #171419; }
   .hm-cell { position: absolute; border-radius: 0; overflow: hidden; cursor: pointer;
@@ -399,8 +399,10 @@
              border: none; font-weight: 700;
              transition: left .42s cubic-bezier(.3,.7,.3,1), top .42s cubic-bezier(.3,.7,.3,1),
                          width .42s cubic-bezier(.3,.7,.3,1), height .42s cubic-bezier(.3,.7,.3,1),
-                         box-shadow .16s, filter .16s, opacity .28s ease; }
-  .hm-cell:hover { box-shadow: inset 0 0 0 2px #fff; filter: brightness(1.16); z-index: 9; }
+                         transform .16s ease, box-shadow .16s, filter .16s, opacity .28s ease; }
+  /* 悬停：不再描白边，改为「颜色微微提亮 + 整体上浮 2px（带一点投影坐实浮起感）」 */
+  .hm-cell:hover { filter: brightness(1.12); transform: translateY(-2px);
+                   box-shadow: 0 4px 10px rgba(0,0,0,.4); z-index: 9; }
   .hm-cell .nm, .hm-cell .ch { max-width: 100%; letter-spacing: -.1px;
                                line-height: 1.1; white-space: nowrap; }
   .hm-cell .nm { font-weight: 500; }        /* 名称：比百分比细一档 */
@@ -635,7 +637,6 @@
       <span id="hm-leg-lo"></span><span class="ramp" id="hm-ramp"></span><span id="hm-leg-hi"></span>
     </div>
   </div>
-  <div class="hm-tip" id="hm-tip"></div>
   <div class="hm-stage" id="hm-stage"></div>
 </div>
 <div class="hm-pop" id="hm-pop"></div>
@@ -774,7 +775,7 @@ const I18N = {
     fail_quote: '行情加载失败：',
     hm_entry: '查看热力图', hm_title: '资产热力图', hm_usd: '美元', hm_cny: '人民币',
     hm_stock: '股票', hm_fund: '基金',
-    hm_area_tip: '面积 = 市值（折美元）　颜色 = 日涨跌幅', hm_empty: '当前筛选下暂无持仓',
+    hm_empty: '当前筛选下暂无持仓',
     hm_load_failed: '热力图加载失败：', hm_mv: '市值', hm_chg: '日涨跌', hm_navdate: '净值日',
     hm_switch_all: '全选', hm_switch_none: '全不选',
   },
@@ -805,7 +806,7 @@ const I18N = {
     fail_quote: 'Quote load failed: ',
     hm_entry: 'Heatmap', hm_title: 'Asset Heatmap', hm_usd: 'USD', hm_cny: 'CNY',
     hm_stock: 'Stocks', hm_fund: 'Funds',
-    hm_area_tip: 'Area = market value (USD)　Color = day change', hm_empty: 'Nothing to show',
+    hm_empty: 'Nothing to show',
     hm_load_failed: 'Heatmap load failed: ', hm_mv: 'MV', hm_chg: 'Day', hm_navdate: 'NAV date',
     hm_switch_all: 'All', hm_switch_none: 'None',
   }
@@ -2187,7 +2188,6 @@ function hmApplyStatic() {
     + '<span class="cnt" id="hm-cnt"></span>'
     + `<button class="eye" id="hm-eye" onclick="hmToggleSec()" title="${esc(eyeTip)}">`
     + (hideSec ? eyeClosed : eyeOpen) + '</button>';
-  $('hm-tip').textContent = _t('hm_area_tip');
   $('hm-leg-lo').textContent = lang === 'en' ? 'Down' : '跌';
   $('hm-leg-hi').textContent = lang === 'en' ? 'Up' : '涨';
   // 图例 = 参考图同款 8 级离散色阶（左跌右涨，方向跟随页面顶部的一键配色）
