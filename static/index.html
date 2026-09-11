@@ -334,14 +334,14 @@
   .summary-card .value { font-size: clamp(20px, 2.6vw, 30px); font-weight: 700; }
   .summary-card .value.sm { font-size: clamp(15px, 2.1vw, 22px); }
   .summary-card .hint { color: var(--muted); font-size: 11.5px; margin-top: 5px; }
-  /* 总资产标题右侧「查看热力图」入口（无边框，右对齐到下方数字右边缘） */
-  .hm-entry { background: rgba(47,129,247,.14); color: #6db0ff; border: 0;
-              border-radius: 999px; padding: 2px 9px; font-size: 11px; font-weight: 600;
-              cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
-              transition: background .15s, color .15s; white-space: nowrap;
+  /* 总资产标题右侧「查看热力图」入口：规格与顶部新闻标签(.tab)完全一致 */
+  .hm-entry { border: 1px solid var(--border); border-radius: 8px; padding: 4px 12px;
+              font-size: 12px; color: var(--muted); background: transparent;
+              transition: all .15s; cursor: pointer; display: inline-flex;
+              align-items: center; gap: 4px; white-space: nowrap;
               font-family: inherit; line-height: 1.5; }
-  .hm-entry:hover { background: rgba(47,129,247,.3); color: #9ac9ff; }
-  .hm-entry svg { width: 11px; height: 11px; flex: none; }
+  .hm-entry:hover { color: var(--text); border-color: rgba(255,255,255,.2); }
+  .hm-entry svg { width: 12px; height: 12px; flex: none; }
 
   /* ---------- 资产热力图（全屏浮层） ---------- */
   .hm-mask { position: fixed; inset: 0; z-index: 90; background: rgba(8,8,10,.985);
