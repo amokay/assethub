@@ -907,7 +907,7 @@ function renderSummaryCn(t) {
     <div class="summary-card pop-in">
       <div class="label">${_t('total_assets')}${privacyEye()}${hmEntryBtn()}</div>
       <div class="value">${val(fmtCny(t.mv))}</div>
-      <div class="hint">≈ $${val(fmt(Math.round(t.mv / portfolio.rate)))}</div>
+      <div class="hint">${val('≈ $' + fmt(Math.round(t.mv / portfolio.rate)))}</div>
     </div>
     <div class="summary-card pop-in">
       <div class="label">${_t('total_pnl_cn')}</div>
@@ -2193,6 +2193,7 @@ const HM_TXT_LAG = 170;               // 文字比方块晚 170ms 浮现（方�
 const HM_STAG_MIN = 18;               // 入场错峰：每格步进下限
 const HM_STAG_MAX = 70;               // 上限（标的很少时也要看得出"一个个来"）
 const HM_STAG_CAP = 520;              // 总排队封顶：标的多时自动压缩，整体 1s 内落位
+const HM_MASK = '****';                 // 隐私遮罩：只显示星号，不带任何货币符号
 const HM_STAG_LEAD = 120;             // 起手静默：清场后先空一拍，避免"删旧块"与"出新块"挤在同一帧
 function fitHmText(name, chg, w, h) {
   const aw = Math.max(4, w - 5), ah = Math.max(4, h - 3);
@@ -2357,7 +2358,7 @@ function hmDraw(animate) {
   if (oldEmpty) oldEmpty.remove();
   const cnt = $('hm-cnt');
   if (cnt) cnt.textContent = items.length
-    ? (hideSec ? '$**** ≈ ¥****' : `${hmMoney(totalUsd, '$')} ≈ ${hmMoney(totalCny, '¥')}`) : '';
+    ? (hideSec ? HM_MASK : `${hmMoney(totalUsd, '$')} ≈ ${hmMoney(totalCny, '¥')}`) : '';
   if (!items.length) {
     hmCells.forEach(el => el.remove());
     hmCells.clear();
