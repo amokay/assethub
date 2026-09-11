@@ -313,6 +313,17 @@
   .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }
   /* 美元 / 人民币两个视图都是 4 张卡（总资产 / 总盈亏 / 当日盈亏 / 现金），排成一行 */
   #summary, #summary-cn { grid-template-columns: repeat(4, 1fr); }
+  /* 后三张卡（总浮盈 / 当日盈亏 / 现金）内容右对齐：标题、数值、副文案统一贴卡片右缘，
+     与第一张「总资产」形成左右分庭的版式。
+     ⚠️ .label 是 flex，text-align 管不到它，必须用 justify-content:flex-end 才能让标题也靠右。 */
+  #summary .summary-card:nth-child(n+2),
+  #summary-cn .summary-card:nth-child(n+2) { text-align: right; }
+  #summary .summary-card:nth-child(n+2) .label,
+  #summary-cn .summary-card:nth-child(n+2) .label { justify-content: flex-end; }
+  /* 右对齐卡片里的铅笔要跟着标题当「一组」贴右缘：
+     必须清掉 margin-right:auto —— 那是给左对齐版用的，会把这组甩到最左边 */
+  #summary .summary-card:nth-child(n+2) .cash-edit,
+  #summary-cn .summary-card:nth-child(n+2) .cash-edit { margin: 0 0 0 -6px; }
 
   /* 顶部市场 tab（美股 / A股），居左 + 滑动下划线 */
   .market-tabs { position: relative; display: flex; gap: 18px; margin: 2px 0 14px;
