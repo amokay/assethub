@@ -393,8 +393,10 @@
                          width .42s cubic-bezier(.3,.7,.3,1), height .42s cubic-bezier(.3,.7,.3,1),
                          box-shadow .16s, filter .16s, opacity .28s ease; }
   .hm-cell:hover { box-shadow: inset 0 0 0 2px #fff; filter: brightness(1.16); z-index: 9; }
-  .hm-cell .nm, .hm-cell .ch { font-weight: 700; max-width: 100%; letter-spacing: -.1px;
+  .hm-cell .nm, .hm-cell .ch { max-width: 100%; letter-spacing: -.1px;
                                line-height: 1.1; white-space: nowrap; }
+  .hm-cell .nm { font-weight: 500; }        /* 名称：比百分比细一档 */
+  .hm-cell .ch { font-weight: 700; }        /* 百分比：字重不变 */
   .hm-cell.enter { animation: hmCellIn .34s cubic-bezier(.2,.7,.3,1); }
   @keyframes hmCellIn { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
   .hm-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
@@ -2016,6 +2018,16 @@ function hmPctTxt(p) {
   return s + '%';
 }
 
+/* 标题旁的总市值用缩略写法（$422.6K / $1.23M）：
+   六位精确整数摆在标题行里既长又与「≈」的模糊语义相冲 */
+function hmShortUsd(v) {
+  const trim = s => s.replace(/\.0+$/, '').replace(/(\.\d)0$/, '$1');
+  const a = Math.abs(v);
+  if (a >= 1e6) return trim((v / 1e6).toFixed(2)) + 'M';
+  if (a >= 1e3) return trim((v / 1e3).toFixed(1)) + 'K';
+  return String(Math.round(v));
+}
+
 /* ---- squarified treemap：把一组面积值铺满矩形，块尽量接近正方形 ---- */
 function hmWorst(row, longSide) {
   const s = row.reduce((a, c) => a + c.area, 0);
@@ -2115,34 +2127,45 @@ function hmBestLayout(items, W, H) {
 
 /* 文本宽度：用 canvas 按真实字体精确测量（比按字符猜 em 可靠，长英文名不会被裁掉尾巴） */
 let hmCtx = null;
-function hmMeasure(str, fs) {
+function hmMeasure(str, fs, weight) {
   if (!hmCtx) {
     hmCtx = document.createElement('canvas').getContext('2d');
     hmCtx._fam = getComputedStyle(document.body).fontFamily || 'sans-serif';
   }
-  hmCtx.font = '700 ' + fs.toFixed(1) + 'px ' + hmCtx._fam;
+  hmCtx.font = (weight || 700) + ' ' + fs.toFixed(1) + 'px ' + hmCtx._fam;
   return hmCtx.measureText(str).width;
 }
-/* 参考图排版：名称一行 + 涨幅一行，均加粗居中不换行，字号随方块自适应 */
+/* 参考图排版：名称一行 + 涨幅一行，均居中不换行，字号随方块自适应。
+   名称比百分比细一档也小一档（HM_NAME_W / HM_NAME_SCALE），百分比字号不受影响 */
 const HM_FS_MAX = 29;                 // 上限：大块字号不超此值
 const HM_FS_MIN = 6.4;
+const HM_NAME_W = 500;                // 名称字重（对应 .hm-cell .nm）
+const HM_NAME_SCALE = 0.85;           // 名称字号 = 基准字号 × 0.85
+const HM_NAME_MIN = HM_FS_MIN * HM_NAME_SCALE;
+const HM_NAME_MAX = HM_FS_MAX * HM_NAME_SCALE;
 function fitHmText(name, chg, w, h) {
   const aw = Math.max(4, w - 5), ah = Math.max(4, h - 3);
-  const perPx = t => hmMeasure(t, 100) / 100;              // 每 1px 字号对应的宽度
-  const fit = t => Math.min(aw / Math.max(0.05, perPx(t)),
-                            aw / Math.max(0.05, perPx(chg) * 1.08),
+  const perPx = (t, wt) => hmMeasure(t, 100, wt) / 100;    // 每 1px 字号对应的宽度
+  /* ① 基准字号：算法与改动前逐字一致（含截断重算），百分比字号 fsC = fs × 1.08 因此完全不变 */
+  const fit = t => Math.min(aw / Math.max(0.05, perPx(t, 700)),
+                            aw / Math.max(0.05, perPx(chg, 700) * 1.08),
                             ah / 2.34, HM_FS_MAX);
   let label = name, fs = fit(label);
-  if (fs < HM_FS_MIN + 0.6 && name.length > 1) {            // 放不下 → 截断加省略号
+  if (fs < HM_FS_MIN + 0.6 && name.length > 1) {           // 放不下 → 截断加省略号
     let cut = name;
     while (cut.length > 1 && fit(cut + '…') < HM_FS_MIN + 0.6) cut = cut.slice(0, -1);
     label = cut === name ? name : cut.replace(/\s+$/, '') + '…';
     fs = fit(label);
   }
   fs = Math.max(HM_FS_MIN, fs);
+  /* ② 名称：只在这里变细变小，并保证仍在可用宽度内 */
+  const fsN = Math.max(HM_NAME_MIN,
+    Math.min(fs * HM_NAME_SCALE,
+             aw / Math.max(0.05, perPx(label, HM_NAME_W) * HM_NAME_SCALE),
+             HM_NAME_MAX));
   const showName = aw >= 11 && ah >= 11;
   const showCh = ah >= 26 && aw >= 34;
-  return { fsN: fs, fsC: fs * 1.08, label, showName, showCh };
+  return { fsN, fsC: fs * 1.08, label, showName, showCh };
 }
 
 function hmApplyStatic() {
@@ -2229,7 +2252,7 @@ function hmDraw() {
   const oldEmpty = stage.querySelector('.hm-empty');
   if (oldEmpty) oldEmpty.remove();
   const cnt = $('hm-cnt');
-  if (cnt) cnt.textContent = items.length ? `${items.length} · ≈ $${fmt(Math.round(totalMv))}` : '';
+  if (cnt) cnt.textContent = items.length ? `${items.length} · ≈ $${hmShortUsd(Math.round(totalMv))}` : '';
   if (!items.length) {
     hmCells.forEach(el => el.remove());
     hmCells.clear();
