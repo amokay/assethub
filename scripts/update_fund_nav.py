@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""美元基金净值自动更新：调 fetch_fund_nav.js 抓官网最新净值 → 更新模板。
+"""美元基金净值自动更新：官网 / DNB 优先，Morningstar 兜底 → 更新模板。
 自动更新 nav_hist（净值序列）+ market_value（市值=份额×净值，份额由市值/最新净值反推，份额不变前提）。
-富达日本（LU0997587083）官网反爬暂无法自动抓取，保留手动（卡片"修改"按钮）。
+富达日本（LU0997587083）官网被 Akamai 封锁、DNB 也无此标的，改由 Morningstar 公开
+quote 端点兜底（见 morningstar_fetch）—— 三只美股基金因此都有自动源。
 用法: python3 update_fund_nav.py
 """
-import json, os, re, shutil, subprocess, sys, datetime, urllib.request
+import json, os, re, shutil, subprocess, sys, time, datetime, urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TPL = os.path.join(ROOT, "data", "portfolio.json")
@@ -60,6 +61,47 @@ def dnb_fetch(isin, slug, name):
     date = "%s-%02d-%02d" % (dm.group(3), months[dm.group(2)[:3]], int(dm.group(1)))
     return {isin: {"name": name, "nav": nav, "date": date}}
 
+def _prev_bd(ds):
+    """上一个工作日。净值只在工作日公布，用来把 Morningstar 给的「前一日价」落到正确日期。
+    不处理交易所节假日：万一撞上，day_pct 取 nav_hist 末两点仍然是正确的那两天。"""
+    d = datetime.date.fromisoformat(ds)
+    while True:
+        d -= datetime.timedelta(days=1)
+        if d.weekday() < 5:
+            return d.isoformat()
+
+
+def morningstar_fetch(code, tries=5, gap=25):
+    """Morningstar 公开 quote 端点：最新净值 / 净值日期 / 当日涨跌% / 前一日价。
+
+    该端点有频率防护：密集请求会持续返回 HTTP 202 空响应，**静置几分钟即恢复**
+    （实测首次请求即成功 → 连续打十几次后全 202 → 隔 8 分钟再打又立刻成功）。
+    因此本脚本"每天一次"的频率是安全的，退避 25s 起步足以覆盖限流窗口。
+    美股基金（尤其富达日本）靠它兜底；返回 None 表示重试耗尽仍拿不到。
+    """
+    url = "https://www.morningstar.com/api/v2/funds/%s/quote" % code
+    for i in range(tries):
+        if i:
+            time.sleep(gap * i)                 # 退避 25s / 50s / 75s / 100s（约 4 分钟）
+        try:
+            j = json.loads(http_get(url, timeout=25))
+            ov = (j.get("overview") or {}).get("payload", {}).get("data") or {}
+            navd = ov.get("nav") or {}
+            nav = navd.get("value")
+            date = (((navd.get("properties") or {}).get("date") or {}).get("value") or "")[:10]
+            pct = (ov.get("navReturn") or {}).get("value")
+            sd = (j.get("structuredData") or {}).get("payload") or []
+            prev = next((x.get("price") for x in sd
+                         if isinstance(x, dict) and x.get("@type") == "PriceSpecification"), None)
+            if nav and date:
+                return {"nav": float(nav), "date": date,
+                        "prev": float(prev) if prev else None,
+                        "day_pct": float(pct) if pct is not None else None}
+        except Exception:
+            pass
+    return None
+
+
 def fetch():
     env = dict(os.environ)
     env["NODE_PATH"] = NODE_PATH
@@ -93,28 +135,47 @@ def main():
         code = f.get("code", "")
         info = data.get(code)
         if not info or not info.get("nav"):
-            print(f"  - {code} 无自动源/抓取失败，跳过（可手动维护）")
+            # 官网 / DNB 没有这只 → Morningstar 兜底（富达日本走这条）
+            ms = morningstar_fetch(code)
+            if ms:
+                info = {"name": f.get("name", ""), "nav": ms["nav"], "date": ms["date"],
+                        "prev": ms["prev"], "src": "morningstar"}
+                print("  · %s 官网无源，改用 Morningstar：%s 净值 %s%s"
+                      % (code, ms["date"], ms["nav"],
+                         "（前一日 %s）" % ms["prev"] if ms.get("prev") else ""))
+        if not info or not info.get("nav"):
+            print(f"  ! {code} 官网与 Morningstar 都没取到净值（可能被限流），"
+                  f"保持原值 {f.get('nav_date')} —— 需手动核对")
             continue
         nav, date = info["nav"], info["date"]
         nh = f.setdefault("nav_hist", {})
-        if date in nh:
+        if nh.get(date) == nav:
             print(f"  = {code} {date} 净值 {nav} 已存在，跳过")
             continue
-        # 份额 = 市值 / 最新已知净值（份额不变前提）
+        # 份额 = 市值 / 最新已知净值（份额不变前提）—— 必须在写入新净值之前取基准
         base_dates = sorted(nh.keys())
-        if base_dates:
-            base_nav = nh[base_dates[-1]]
-            shares = (f.get("market_value") or 0) / base_nav if base_nav else 0
-        else:
-            shares = f.get("shares") or 0
+        base_nav = nh[base_dates[-1]] if base_dates else 0
+        shares = ((f.get("market_value") or 0) / base_nav) if base_nav else (f.get("shares") or 0)
+        # 断档补「前一日」：否则 day_pct 会拿很久以前的净值当昨天
+        # （富达日本的 nav_hist 停在 08-28、最新净值 09-10，只补最新一条会算出两周累计跌幅）
+        pdate, prev = None, info.get("prev")
+        if prev and base_dates:
+            cand = _prev_bd(date)
+            if base_dates[-1] < cand < date:
+                pdate = cand
         if shares <= 0:
             print(f"  ! {code} 无法推算份额，仅记录净值")
+            if pdate:
+                nh[pdate] = prev
             nh[date] = nav
             continue
         mv_new = round(shares * nav, 2)
         # 备份后更新
         if not changed:
             shutil.copy(TPL, TPL + ".bak-" + datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
+        if pdate:
+            nh[pdate] = prev
+            print(f"  + {code} 补前一日 {pdate} 净值 {prev}")
         nh[date] = nav
         f["nav"] = nav
         f["nav_date"] = date
