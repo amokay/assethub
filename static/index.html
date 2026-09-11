@@ -358,16 +358,13 @@
   .hm-close svg { width: 14px; height: 14px; }
   .hm-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
             padding: 0 2px 12px; }
-  /* 顶部筛选：与页面通用控件同一套规格（新闻标签 .tab：8px 圆角 + 发丝描边 + 12px 字号，
-     选中态用页面统一的「白底深字」激活样式），不再自成一套胶囊风 */
+  /* 顶部筛选：不加外边框，选中态用页面统一的「白底深字」激活样式 */
   .hm-chk { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600;
-            color: var(--muted); background: transparent; border: 1px solid var(--border);
+            color: var(--muted); background: transparent;
             border-radius: 8px; padding: 4px 12px; cursor: pointer; user-select: none;
             font-family: inherit; transition: all .15s; }
-  .hm-chk:hover { color: var(--text); border-color: rgba(255,255,255,.2); }
-  .hm-chk.on { background: #fff; color: #1c1c1e; border-color: #fff; }
-  /* 市场筛选（美元/人民币）与类型筛选（基金）之间的分隔线 */
-  .hm-sep { width: 1px; height: 16px; background: var(--border); flex: none; }
+  .hm-chk:hover { color: var(--text); }
+  .hm-chk.on { background: #fff; color: #1c1c1e; }
   /* 自绘勾选框，替掉系统默认的蓝色方框（页面里没有原生表单控件） */
   .hm-chk input { -webkit-appearance: none; appearance: none; width: 13px; height: 13px;
                   margin: 0; flex: none; cursor: pointer; border-radius: 4px;
@@ -613,7 +610,6 @@
       <input type="checkbox" checked onchange="hmSetMarket('cn', this.checked)">
       <span data-i18n="hm_cny">人民币</span>
     </label>
-    <span class="hm-sep"></span>
     <label class="hm-chk on" id="hm-chk-fd" title="">
       <input type="checkbox" checked onchange="hmSetFund(this.checked)">
       <span data-i18n="hm_fund">基金</span>
