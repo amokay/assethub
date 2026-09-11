@@ -431,8 +431,9 @@
          display: inline-flex; align-items: center; color: var(--muted);
          vertical-align: middle; position: relative; top: -1px; }
   .eye svg { width: 14px; height: 14px; }
-  /* 汇总卡「总资产」数值旁的眼睛：字号被 clamp 放大（20~30px），单独校正垂直位置 */
-  .summary-card .value .eye { top: -3px; margin-left: 8px; }
+  /* 汇总卡「总资产」标签后的眼睛：.label 是 flex + gap:12px，
+     用负 margin 把眼睛贴到「总资产」右侧（净 6px），与后面热力图按钮保持 12px 行距 */
+  .summary-card .label .eye { margin: 0 0 0 -6px; }
   /* logo 旁的 slogan：底部与 logo 底边对齐，微调下移 2px、左移 6px；中文加大字距 */
   .slogan { font-size: 14px; color: var(--muted); font-weight: 500;
             margin-left: 12px; letter-spacing: .4px; white-space: nowrap; align-self: flex-end;
@@ -883,8 +884,8 @@ function renderSummaryCn(t) {
   const cval = v => hideSec ? '' : cls(v);
   $('summary-cn').innerHTML = `
     <div class="summary-card pop-in">
-      <div class="label">${_t('total_assets')}${hmEntryBtn()}</div>
-      <div class="value">${val(fmtCny(t.mv))}${privacyEye()}</div>
+      <div class="label">${_t('total_assets')}${privacyEye()}${hmEntryBtn()}</div>
+      <div class="value">${val(fmtCny(t.mv))}</div>
       <div class="hint">≈ $${val(fmt(Math.round(t.mv / portfolio.rate)))}</div>
     </div>
     <div class="summary-card pop-in">
@@ -956,8 +957,8 @@ function renderSummary(t, rate) {
   const cval = v => hideSec ? '' : cls(v);
   $('summary').innerHTML = `
     <div class="summary-card pop-in">
-      <div class="label">${_t('total_assets')}${hmEntryBtn()}</div>
-      <div class="value">${val(fmtMoney(t.mv))}${privacyEye()}</div>
+      <div class="label">${_t('total_assets')}${privacyEye()}${hmEntryBtn()}</div>
+      <div class="value">${val(fmtMoney(t.mv))}</div>
       <div class="hint">${val('≈ ¥' + Math.round(t.mv_cny).toLocaleString())}</div>
     </div>
     <div class="summary-card pop-in">
