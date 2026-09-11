@@ -429,24 +429,9 @@
     from { opacity: 0; transform: translateY(6px) scale(.9); filter: blur(3px); }
     to   { opacity: 1; transform: none; filter: none; }
   }
-  /* 全场掠光：斜向柔光带一次性扫过整块画布，给"刷新"一个收束动作 */
-  .hm-sweep { position: absolute; inset: 0; z-index: 6; pointer-events: none; overflow: hidden; }
-  .hm-sweep::before { content: ''; position: absolute; top: -60%; left: 0; height: 220%; width: 32%;
-                      opacity: 0; will-change: transform, opacity;
-                      background: linear-gradient(96deg, rgba(255,255,255,0) 0%,
-                        rgba(255,255,255,.05) 28%, rgba(255,255,255,.13) 50%,
-                        rgba(255,255,255,.05) 72%, rgba(255,255,255,0) 100%); }
-  .hm-sweep.go::before { animation: hmSweep 1s cubic-bezier(.33,0,.2,1) .12s both; }
-  @keyframes hmSweep {
-    0%   { opacity: 0; transform: translate3d(-60%, 0, 0); }
-    16%  { opacity: 1; }
-    80%  { opacity: 1; }
-    100% { opacity: 0; transform: translate3d(360%, 0, 0); }
-  }
   @media (prefers-reduced-motion: reduce) {
     .hm-cell.enter { animation: none; }
     .hm-cell.enter .nm, .hm-cell.enter .ch { animation: none; }
-    .hm-sweep { display: none; }
   }
   .hm-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
               color: var(--muted); font-size: 13px; }
@@ -2353,20 +2338,6 @@ function hmPlayEnter(el, delayMs) {
   }, { once: true });
 }
 
-/* 全场掠光：波纹起播后一条柔光带斜扫过画布。一次性节点，播完即移除
-   （另加超时兜底，防止动画被跳过时残留把方块盖住） */
-function hmSweep(stage) {
-  const old = stage.querySelector('.hm-sweep');
-  if (old) old.remove();
-  const s = document.createElement('div');
-  s.className = 'hm-sweep';
-  stage.appendChild(s);
-  requestAnimationFrame(() => s.classList.add('go'));
-  const done = () => { if (s.isConnected) s.remove(); };
-  s.addEventListener('animationend', done, { once: true });
-  setTimeout(done, 2000);
-}
-
 /* 扁平布局：全部标的（美元+人民币）铺成一张图，不分组。
    animate=true 时清掉全部方块重铺一遍，方块按面积从大到小依次落位（刷新/切筛选/打开）。
    窗口 resize 走 animate=false：只挪位置，不重播入场，否则拖拽窗口会一直在闪。 */
@@ -2451,7 +2422,6 @@ function hmDraw(animate) {
   if (pending.length) {
     void stage.offsetWidth;                  // 一次性把全部新方块几何落定，再统一起播（避免逐格强制回流）
     pending.forEach(([el, d]) => hmPlayEnter(el, d));
-    if (animate && pending.length > 2) hmSweep(stage);
   }
 }
 
