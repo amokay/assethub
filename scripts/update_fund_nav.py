@@ -9,8 +9,27 @@ import json, os, re, shutil, subprocess, sys, datetime, urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TPL = os.path.join(ROOT, "data", "portfolio.json")
-NODE = os.environ.get("NODE_BIN", "/Users/wangmingyu/.workbuddy/binaries/node/versions/22.22.2/bin/node")
-NODE_PATH = os.environ.get("NODE_PATH", "/Users/wangmingyu/.workbuddy/binaries/node/workspace/node_modules")
+NODE_PATH = os.environ.get("NODE_PATH",
+                           os.path.expanduser("~/.workbuddy/binaries/node/workspace/node_modules"))
+
+def _find_node():
+    """定位 node 可执行文件。WorkBuddy 托管运行时升级后目录名会变（22.22.2 → 22.22.2-2 → -3 …），
+    写死路径会静默失效，所以这里按 NODE_BIN → 常见候选 → 目录扫描最新版 → 系统 PATH 逐级回退。"""
+    env = os.environ.get("NODE_BIN")
+    if env and os.path.exists(env):
+        return env
+    root = os.path.expanduser("~/.workbuddy/binaries/node/versions")
+    cands = [os.path.join(root, v, "bin", "node")
+             for v in sorted(os.listdir(root), reverse=True)] if os.path.isdir(root) else []
+    for c in cands:
+        if os.path.exists(c):
+            return c
+    for c in ("/usr/local/bin/node", "/opt/homebrew/bin/node"):
+        if os.path.exists(c):
+            return c
+    return "node"
+
+NODE = _find_node()
 
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
       "Chrome/120.0 Safari/537.36")
@@ -51,6 +70,10 @@ def fetch():
                            capture_output=True, text=True, timeout=240, env=env)
         if r.returncode == 0:
             out.update(json.loads(r.stdout))
+        else:
+            # 不再静默：暴露 node 侧真实失败原因（依赖缺失/官网反爬等）
+            err = (r.stderr or r.stdout or "").strip().splitlines()
+            print("  ! 富兰克林抓取异常: node 退出码 %s | %s" % (r.returncode, (err[0] if err else "无输出")[:120]))
     except Exception as e:
         print("  ! 富兰克林抓取异常:", str(e)[:80])
     # 2) 贝莱德经 DNB（curl 直连）
