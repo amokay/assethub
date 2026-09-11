@@ -412,7 +412,11 @@
                font-size: 11px; color: var(--muted); white-space: nowrap; }
   /* 图例：参考图同款 8 级离散色阶 */
   .hm-legend .ramp { display: flex; height: 9px; width: auto; overflow: hidden; }
-  .hm-legend .ramp i { display: block; width: 15px; height: 100%; }
+  /* 图例色块可 hover：自身提亮作反馈，同时点亮热力图里同一档的方块（见 hmLit）。
+     只动 filter —— ramp 上有 overflow:hidden，缩放/位移会被裁掉 */
+  .hm-legend .ramp i { display: block; width: 15px; height: 100%;
+                       cursor: pointer; transition: filter .16s ease; }
+  .hm-legend .ramp i:hover { filter: brightness(1.4); }
   /* 画布底色 = 参考图 #171419，方块之间留 1.5px 暗色缝 */
   .hm-stage { position: relative; flex: 1; min-height: 0; background: #171419; }
   .hm-cell { position: absolute; border-radius: 0; overflow: hidden; cursor: pointer;
@@ -422,9 +426,11 @@
              transition: left .42s cubic-bezier(.3,.7,.3,1), top .42s cubic-bezier(.3,.7,.3,1),
                          width .42s cubic-bezier(.3,.7,.3,1), height .42s cubic-bezier(.3,.7,.3,1),
                          transform .16s ease, box-shadow .16s, filter .16s, opacity .28s ease; }
-  /* 悬停：不再描白边，改为「颜色微微提亮 + 整体上浮 2px（带一点投影坐实浮起感）」 */
-  .hm-cell:hover { filter: brightness(1.12); transform: translateY(-2px);
-                   box-shadow: 0 4px 10px rgba(0,0,0,.4); z-index: 9; }
+  /* 悬停：不再描白边，改为「颜色微微提亮 + 整体上浮 2px（带一点投影坐实浮起感）」。
+     .lit = 鼠标停在右上角图例色块上时，热力图里同一档方块的点亮态 —— 与 :hover 完全同一套视觉，
+     所以两条选择器必须写在一起，改一处另一处自动跟着变 */
+  .hm-cell:hover, .hm-cell.lit { filter: brightness(1.12); transform: translateY(-2px);
+                                 box-shadow: 0 4px 10px rgba(0,0,0,.4); z-index: 9; }
   .hm-cell .nm, .hm-cell .ch { max-width: 100%; letter-spacing: -.1px;
                                line-height: 1.1; white-space: nowrap; }
   .hm-cell .nm { font-weight: 500; }        /* 名称：比百分比细一档 */
@@ -2212,6 +2218,21 @@ function hmBg(pct) {
   const r = hmRamps();                                  // 正数用 up 色阶，负数用 down 色阶
   return (pct >= 0 ? r.up : r.down)[idx];
 }
+/* 档位 key：与图例 8 个格子一一对应（u0~u3 涨、d0~d3 跌、x = 无数据）。
+   hover 图例色块时按这个 key 找出热力图里同档的方块，不用比对颜色字符串
+   （方块被 brightness 处理过，取到的计算值会变，比颜色不可靠）。 */
+function hmLvKey(pct) {
+  if (pct === null || pct === undefined || isNaN(pct)) return 'x';
+  return (pct >= 0 ? 'u' : 'd') + Math.min(3, Math.floor(Math.abs(pct)));
+}
+/* 点亮 / 熄灭某一档方块（hover 图例色块时调用）。
+   force=true 用于重绘后按当前档位补回点亮态 —— 新建的方块没有 .lit，
+   而短路判断会因为「档位没变」直接 return，不补就丢了。 */
+function hmLit(lv, force) {
+  if (!force && hmLit.cur === lv) return;
+  hmLit.cur = lv || '';
+  hmCells.forEach(el => el.classList.toggle('lit', !!lv && el.dataset.lv === lv));
+}
 /* 参考图数值写法：正数不带 +，去掉末尾多余 0，至少保留 1 位小数 */
 function hmPctTxt(p) {
   let s = Number(p).toFixed(2);
@@ -2385,8 +2406,10 @@ function hmApplyStatic() {
   $('hm-leg-hi').textContent = lang === 'en' ? 'Up' : '涨';
   // 图例 = 8 格离散色阶（左跌右涨），直接复用 hmRamps() 那两套 → 天然跟随配色反转
   const rm = hmRamps();
-  $('hm-ramp').innerHTML = rm.down.slice().reverse().concat(rm.up)
-    .map(c => `<i style="background:${c}"></i>`).join('');
+  const legDown = rm.down.map((c, i) => ({ c, lv: 'd' + i })).reverse();  // 跌的一边倒序：深→浅
+  const legUp = rm.up.map((c, i) => ({ c, lv: 'u' + i }));
+  $('hm-ramp').innerHTML = legDown.concat(legUp)
+    .map(x => `<i data-lv="${x.lv}" style="background:${x.c}"></i>`).join('');
   $('hm-chk-us').classList.toggle('on', hmOn.us);
   $('hm-chk-cn').classList.toggle('on', hmOn.cn);
   $('hm-chk-fd').classList.toggle('on', hmOn.fund);
@@ -2442,6 +2465,7 @@ function closeHeatmap() {
   $('hm-mask').classList.remove('open');
   $('hm-pop').classList.remove('show');
   $('hm-pop').dataset.k = '';
+  hmLit('');                      // 关浮层时收掉图例点亮态，免得下次打开还亮着
   document.documentElement.style.overflow = '';
 }
 function hmSetMarket(k, on) {
@@ -2568,6 +2592,7 @@ function hmDraw(animate) {
       el.style.height = h + 'px';
     }
     el.style.background = hmBg(it.day_pct);
+    el.dataset.lv = hmLvKey(it.day_pct);   // 供 hover 图例色块时按档位点亮
     hmPaintCell(el, it, w, h);
     if (isNew) pending.push([el, delayOf.get(key) || 0]);   // 内容先铺完，几何落定后再起播
   }
@@ -2576,6 +2601,8 @@ function hmDraw(animate) {
     void stage.offsetWidth;                  // 一次性把全部新方块几何落定，再统一起播（避免逐格强制回流）
     pending.forEach(([el, d]) => hmPlayEnter(el, d));
   }
+  // 重绘会换掉方块 DOM，若此刻图例正被 hover，点亮态要补回去
+  if (hmLit.cur) hmLit(hmLit.cur, true);
 }
 
 function hmShowPop(el, ev) {
@@ -2628,6 +2655,17 @@ function hmMovePop(ev) {
     $('hm-pop').classList.remove('show');
     $('hm-pop').dataset.k = '';
   });
+  /* 图例色块 hover → 点亮热力图里同一档的方块。
+     mouseover 会冒泡，所以挂容器即可（格子间移动时自动切档）；
+     mouseleave 只在鼠标移出整条图例时触发一次，负责收尾熄灭 */
+  const ramp = $('hm-ramp');
+  if (ramp) {
+    ramp.addEventListener('mouseover', ev => {
+      const i = ev.target && ev.target.closest ? ev.target.closest('i[data-lv]') : null;
+      hmLit(i ? i.dataset.lv : '');
+    });
+    ramp.addEventListener('mouseleave', () => hmLit(''));
+  }
   window.addEventListener('keydown', ev => {
     if (ev.key === 'Escape' && $('hm-mask').classList.contains('open')) closeHeatmap();
   });
