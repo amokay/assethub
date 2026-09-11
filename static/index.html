@@ -2140,8 +2140,8 @@ function hmMeasure(str, fs, weight) {
 const HM_FS_MAX = 29;                 // 上限：大块字号不超此值
 const HM_FS_MIN = 6.4;
 const HM_NAME_W = 500;                // 名称字重（对应 .hm-cell .nm）
-const HM_NAME_SCALE = 0.85;           // 名称字号 = 基准字号 × 0.85
-const HM_NAME_MIN = HM_FS_MIN * HM_NAME_SCALE;
+const HM_NAME_SCALE = 0.75;           // 名称字号 = 基准字号 × 0.75
+const HM_NAME_MIN = 5.4;              // 名称最小字号：保住可读下限，不随缩放继续下探
 const HM_NAME_MAX = HM_FS_MAX * HM_NAME_SCALE;
 function fitHmText(name, chg, w, h) {
   const aw = Math.max(4, w - 5), ah = Math.max(4, h - 3);
