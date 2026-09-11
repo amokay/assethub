@@ -2148,13 +2148,19 @@ function hmName(it) {
   return ((lang === 'en' ? HM_SHORT_EN : HM_SHORT_ZH)[it.code]) || it.name;
 }
 
-/* ---- 配色：热力图色阶从「外面股票卡片的涨跌色」派生 ----
-   取 --up / --down 的**实际解析色**（默认 #ff453a / #30d158，随「涨红跌绿 ↔ 涨绿跌红」
-   一键反转自动互换），保持色相与饱和度、按统一系数逐档压低明度 → 4 档深浅。
-   系数 0.36~0.66 让新色阶的明度正好落在原硬编码色阶的区间
-   （红 22/28/34/40%，绿 18/23/28/33%），深浅节奏不变，但色相与股票卡片完全一致。
-   以后改 --red / --green 或反转涨跌，热力图与图例自动跟随，不再维护第二套颜色。 */
-const HM_LV = [0.36, 0.46, 0.56, 0.66];   // 明度系数（× base 的 L）：0 档最深 → 3 档最亮
+/* ---- 配色：热力图色阶以指定基色为最亮档，逐档降低明度展开 4 档 ----
+   基色 HM_RED_BASE / HM_GREEN_BASE 为指定色 #AC2820 / #127C2B：
+   它们的色相与外面股票卡片的涨跌色几乎一致（红 3.4° ↔ #ff453a 3.4°，
+   绿 134.1° ↔ #30d158 135°），但饱和度更低（68.6% / 74.6%）、明度更低，
+   铺大面积方块时不刺眼 —— 相当于「同源色相的哑光版」。
+   展开方式：固定色相与饱和度，只把 L 乘 HM_LV（1.0 = 基色本身，即最亮档）：
+     红 #5E1611 → #781C16 → #92221B → #AC2820   (L 21.8 / 27.9 / 33.9 / 40%)
+     绿 #0A4417 → #0D561E → #0F6924 → #127C2B   (L 15.2 / 19.4 / 23.6 / 27.8%)
+   HM_LV = 上一版 0.36~0.66 按最高档归一化（÷0.66），深浅节奏与手写色阶一致。
+   「涨红跌绿 ↔ 涨绿跌红」一键反转时两套色阶整体互换（upGreen 决定 up 用哪套）。 */
+const HM_RED_BASE = '#AC2820';
+const HM_GREEN_BASE = '#127C2B';
+const HM_LV = [0.545, 0.697, 0.848, 1.0];  // 明度系数（× base 的 L）：0 档最深 → 3 档 = 基色
 const HM_NODATA = '#4d4d59';
 
 /* 'rgb(48, 209, 88)' 或 '#30d158' → [r, g, b] */
@@ -2186,24 +2192,16 @@ function hmFromHsl(h, s, l) {
     [Math.floor(h / 60) % 6].map(v => Math.round((v + m) * 255));
   return '#' + rgb.map(v => v.toString(16).padStart(2, '0')).join('');
 }
-/* 取 --up / --down 的解析后颜色：这两个变量值是 `var(--green)` 这样的**引用**，
-   getComputedStyle 直接读只会拿到字面量，所以用隐藏探针元素染一次色再读 computed color。
+/* 由两个基色各展开一套 4 档色阶；涨用哪套、跌用哪套由 upGreen 决定。
    结果缓存；配色模式切换时由 hmRecolor() 置空重算。 */
 function hmRamps() {
   if (hmRamps.cache) return hmRamps.cache;
-  const probe = document.createElement('span');
-  probe.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden';
-  document.documentElement.appendChild(probe);
-  probe.style.color = 'var(--up)';
-  const up = getComputedStyle(probe).color;
-  probe.style.color = 'var(--down)';
-  const down = getComputedStyle(probe).color;
-  probe.remove();
-  const ramp = col => {
-    const [h, s, l] = hmToHsl(hmRgb(col));
+  const ramp = hex => {
+    const [h, s, l] = hmToHsl(hmRgb(hex));
     return HM_LV.map(k => hmFromHsl(h, s, Math.min(1, l * k)));
   };
-  hmRamps.cache = { up: ramp(up), down: ramp(down) };
+  const red = ramp(HM_RED_BASE), green = ramp(HM_GREEN_BASE);
+  hmRamps.cache = { up: upGreen ? green : red, down: upGreen ? red : green };
   return hmRamps.cache;
 }
 function hmRecolor() { hmRamps.cache = null; }
@@ -2211,7 +2209,7 @@ function hmRecolor() { hmRamps.cache = null; }
 function hmBg(pct) {
   if (pct === null || pct === undefined || isNaN(pct)) return HM_NODATA;
   const idx = Math.min(3, Math.floor(Math.abs(pct)));   // 0~1% → 0 档，1~2% → 1 档……
-  const r = hmRamps();                                  // 正数用 --up 派生色阶，负用 --down
+  const r = hmRamps();                                  // 正数用 up 色阶，负数用 down 色阶
   return (pct >= 0 ? r.up : r.down)[idx];
 }
 /* 参考图数值写法：正数不带 +，去掉末尾多余 0，至少保留 1 位小数 */
@@ -2385,7 +2383,7 @@ function hmApplyStatic() {
     + (hideSec ? eyeClosed : eyeOpen) + '</button>';
   $('hm-leg-lo').textContent = lang === 'en' ? 'Down' : '跌';
   $('hm-leg-hi').textContent = lang === 'en' ? 'Up' : '涨';
-  // 图例 = 8 格离散色阶（左跌右涨），直接复用从 --up / --down 派生的那两套 → 天然跟随配色
+  // 图例 = 8 格离散色阶（左跌右涨），直接复用 hmRamps() 那两套 → 天然跟随配色反转
   const rm = hmRamps();
   $('hm-ramp').innerHTML = rm.down.slice().reverse().concat(rm.up)
     .map(c => `<i style="background:${c}"></i>`).join('');
