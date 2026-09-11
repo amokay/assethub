@@ -378,13 +378,6 @@
   .hm-chk input:checked { border-color: currentColor; background-color: currentColor;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.4 8.4l3.1 3.1L12.6 5' fill='none' stroke='%23fff' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     background-size: 9px 9px; }
-  /* 配色翻转按钮沿用页面 .refresh 的规格 */
-  .hm-flip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px;
-             color: var(--text); background: var(--card); border: 1px solid var(--border);
-             border-radius: 8px; padding: 5px 12px; cursor: pointer; user-select: none;
-             font-family: inherit; transition: background .15s; }
-  .hm-flip:hover { background: var(--card-hover); }
-  .hm-flip svg { width: 13px; height: 13px; flex: none; }
   .hm-legend { margin-left: auto; display: inline-flex; align-items: center; gap: 7px;
                font-size: 11px; color: var(--muted); white-space: nowrap; }
   /* 图例：参考图同款 8 级离散色阶 */
@@ -625,11 +618,6 @@
       <input type="checkbox" checked onchange="hmSetFund(this.checked)">
       <span data-i18n="hm_fund">基金</span>
     </label>
-    <button class="hm-flip" id="hm-flip" onclick="toggleColorMode()" title="切换涨跌配色">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M7 4v12M7 20l-3-3M7 20l3-3M17 20V8M17 4l-3 3M17 4l3 3"/></svg>
-      <span id="hm-flip-label"></span>
-    </button>
     <div class="hm-legend">
       <span id="hm-leg-lo"></span><span class="ramp" id="hm-ramp"></span><span id="hm-leg-hi"></span>
     </div>
@@ -2159,7 +2147,7 @@ function hmApplyStatic() {
   $('hm-tip').textContent = _t('hm_area_tip');
   $('hm-leg-lo').textContent = lang === 'en' ? 'Down' : '跌';
   $('hm-leg-hi').textContent = lang === 'en' ? 'Up' : '涨';
-  // 图例 = 参考图同款 8 级离散色阶（左跌右涨，随配色一键切换翻转）
+  // 图例 = 参考图同款 8 级离散色阶（左跌右涨，方向跟随页面顶部的一键配色）
   const downRamp = upGreen ? HM_RED : HM_GREEN;
   const upRamp = upGreen ? HM_GREEN : HM_RED;
   $('hm-ramp').innerHTML = downRamp.slice().reverse().concat(upRamp)
@@ -2174,8 +2162,6 @@ function hmApplyStatic() {
     : noMkt
       ? (en ? 'Funds only — check USD/CNY to add stocks' : '只看基金；勾选美元/人民币可加入股票')
       : (en ? 'Uncheck to show stocks only' : '取消勾选只看股票');
-  const fl = $('hm-flip-label');
-  if (fl) fl.textContent = upGreen ? _t('upgreen') : _t('upred');
   document.documentElement.style.overflow = $('hm-mask').classList.contains('open') ? 'hidden' : '';
 }
 
