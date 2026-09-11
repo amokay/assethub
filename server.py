@@ -1031,14 +1031,30 @@ def get_preference():
 
 # ---------- 资产热力图 ----------
 
-def _fund_day_pct(f):
-    """基金日涨跌幅（%）：优先 nav_hist 最后两点，回落 spark 末两点；无数据返回 None"""
+def _fund_day_pct(f, allow_bench=False):
+    """基金日涨跌幅（%），返回 (pct, 净值日期)；无数据返回 (None, nav_date)。
+
+    口径优先级（必须与页面卡片同源，否则热力图与卡片"对不上"）：
+      ① f["day_pct"]  —— portfolio 已算好的净值日涨幅。美股基金走这条，是唯一权威值。
+      ② f["nav_hist"] —— 调用方直接传模板原始 dict 时的回退。
+      ③ f["spark"] 末两点 —— **仅 allow_bench=True 时可用**。只有人民币基金的 spark 是
+         真实净值（fetch_cn_fund_nav）；**美股基金的 spark 是「参考基准指数」**
+         （FUND_BENCH 抓的纳指/标普/日经，build 里记在 fd["benchmark"]）。
+         拿它算等于把基准指数的涨跌当成基金收益：实测贝莱德世界科技卡片 -1.32% vs
+         热力图 +1.02%（纳指），富达日本价值卡片 +0.85%（净值 08-28）vs 热力图 -1.93%
+         （日经当日）——差 2.3~2.8 个百分点、方向甚至相反。故美股侧一律不允许回落，
+         宁可显示 '—' 也不显示错的数。
+    """
+    if f.get("day_pct") is not None:
+        return f.get("day_pct"), (f.get("nav_date") or "")
     hist = f.get("nav_hist") or {}
     if len(hist) > 1:
         ds = sorted(hist.keys())
         a, b = hist.get(ds[-2]), hist.get(ds[-1])
         if a and b and a > 0:
             return round((b / a - 1) * 100, 2), ds[-1]
+    if not allow_bench:
+        return None, (f.get("nav_date") or "")
     sp = f.get("spark") or []
     if len(sp) > 1 and sp[-2] > 0:
         nav_dates = f.get("nav_dates") or []
@@ -1077,6 +1093,7 @@ def get_heatmap():
             add(s.get("code"), s.get("name"), "stock", "us",
                 s.get("mv"), s.get("chg_pct"), as_of)
         for f in pf.get("funds", []):
+            # 美股基金：只用净值日涨幅，绝不回落到 spark（那是参考基准指数）
             pct, d = _fund_day_pct(f)
             add(f.get("code"), f.get("name"), "fund", "us",
                 f.get("market_value"), pct, d)
@@ -1086,7 +1103,8 @@ def get_heatmap():
             add(s.get("code"), s.get("name"), "stock", "cn",
                 s.get("mv"), s.get("chg_pct"), as_of)
         for f in pf.get("funds_cny", []):
-            pct, d = _fund_day_pct(f)
+            # 人民币基金：spark 是 fetch_cn_fund_nav 的真实净值，可安全回落
+            pct, d = _fund_day_pct(f, allow_bench=True)
             add(f.get("code"), f.get("name"), "fund", "cn",
                 f.get("market_value"), pct, d)
 
