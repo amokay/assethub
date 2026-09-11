@@ -431,6 +431,8 @@
          display: inline-flex; align-items: center; color: var(--muted);
          vertical-align: middle; position: relative; top: -1px; }
   .eye svg { width: 14px; height: 14px; }
+  /* 汇总卡「总资产」数值旁的眼睛：字号被 clamp 放大（20~30px），单独校正垂直位置 */
+  .summary-card .value .eye { top: -3px; margin-left: 8px; }
   /* logo 旁的 slogan：底部与 logo 底边对齐，微调下移 2px、左移 6px；中文加大字距 */
   .slogan { font-size: 14px; color: var(--muted); font-weight: 500;
             margin-left: 12px; letter-spacing: .4px; white-space: nowrap; align-self: flex-end;
@@ -776,6 +778,7 @@ const I18N = {
     kw_none: '相关新闻', search_src: '东方财富检索',
     otc_fund: '场外基金 ｜ 净值滞后', cny_fund: '人民币基金 ｜ 净值滞后', total_ret: '总收益', today: '当日',
     fail_quote: '行情加载失败：',
+    eye_hide: '隐藏金额', eye_show: '显示金额',
     hm_entry: '查看热力图', hm_title: '资产热力图', hm_usd: '美元', hm_cny: '人民币',
     hm_stock: '股票', hm_fund: '基金',
     hm_empty: '当前筛选下暂无持仓',
@@ -807,6 +810,7 @@ const I18N = {
     kw_none: 'related news', search_src: 'Eastmoney search',
     otc_fund: 'OTC Fund ｜ NAV lag', cny_fund: 'CNY Fund ｜ NAV lag', total_ret: 'Total', today: 'Today',
     fail_quote: 'Quote load failed: ',
+    eye_hide: 'Hide amounts', eye_show: 'Show amounts',
     hm_entry: 'Heatmap', hm_title: 'Asset Heatmap', hm_usd: 'USD', hm_cny: 'CNY',
     hm_stock: 'Stocks', hm_fund: 'Funds',
     hm_empty: 'Nothing to show',
@@ -880,7 +884,7 @@ function renderSummaryCn(t) {
   $('summary-cn').innerHTML = `
     <div class="summary-card pop-in">
       <div class="label">${_t('total_assets')}${hmEntryBtn()}</div>
-      <div class="value">${val(fmtCny(t.mv))}</div>
+      <div class="value">${val(fmtCny(t.mv))}${privacyEye()}</div>
       <div class="hint">≈ $${val(fmt(Math.round(t.mv / portfolio.rate)))}</div>
     </div>
     <div class="summary-card pop-in">
@@ -953,7 +957,7 @@ function renderSummary(t, rate) {
   $('summary').innerHTML = `
     <div class="summary-card pop-in">
       <div class="label">${_t('total_assets')}${hmEntryBtn()}</div>
-      <div class="value">${val(fmtMoney(t.mv))}</div>
+      <div class="value">${val(fmtMoney(t.mv))}${privacyEye()}</div>
       <div class="hint">${val('≈ ¥' + Math.round(t.mv_cny).toLocaleString())}</div>
     </div>
     <div class="summary-card pop-in">
@@ -2010,6 +2014,12 @@ function hmEntryBtn() {
     + `${_t('hm_entry')}</button>`;
 }
 
+/* 总资产数值右侧的隐私眼睛：隐藏/显示全站金额（与热力图共用同一个 hideSec） */
+function privacyEye() {
+  return `<button class="eye" onclick="toggleSecNums()" title="${_t(hideSec ? 'eye_show' : 'eye_hide')}">`
+    + (hideSec ? eyeClosed : eyeOpen) + '</button>';
+}
+
 function hmName(it) {
   if (it.kind === 'stock') return (lang === 'en' && STOCK_EN[it.code]) || it.name;
   return ((lang === 'en' ? HM_SHORT_EN : HM_SHORT_ZH)[it.code]) || it.name;
@@ -2184,8 +2194,7 @@ function fitHmText(name, chg, w, h) {
 
 function hmApplyStatic() {
   const en = lang === 'en';
-  const eyeTip = hideSec ? (en ? 'Show amounts' : '显示金额')
-                         : (en ? 'Hide amounts' : '隐藏金额');
+  const eyeTip = _t(hideSec ? 'eye_show' : 'eye_hide');
   /* 标题右侧：总市值 + 眼睛（复用页面既有的 .eye 规格与 eyeOpen/eyeClosed 图标） */
   $('hm-title').innerHTML = esc(_t('hm_title'))
     + '<span class="cnt" id="hm-cnt"></span>'
