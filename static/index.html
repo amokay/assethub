@@ -350,10 +350,13 @@
   @keyframes hmFade { from { opacity: 0 } to { opacity: 1 } }
   /* gap 与页面 header 的按钮间距一致 */
   .hm-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 0 2px 6px; }
-  .hm-title { font-size: 16px; font-weight: 700; letter-spacing: -.2px; }
-  .hm-title .cnt { font-size: 12px; font-weight: 500; color: var(--muted); margin-left: 8px; }
+  /* 标题 16 → 20px；行高显式定死，避免撑高标题行把筛选条往下推 */
+  .hm-title { font-size: 20px; font-weight: 700; letter-spacing: -.3px; line-height: 1.25; }
+  .hm-title .cnt { font-size: 13px; font-weight: 500; color: var(--muted); margin-left: 9px; }
   /* 标题旁的总额眼睛：直接复用页面既有的 .eye 规格 */
   .hm-title .eye { top: 0; }
+  /* 眼睛随标题一起放大一档（全局 .eye svg 是 14px） */
+  .hm-title .eye svg { width: 16px; height: 16px; }
   /* 右上角操作区：刷新按钮沿用页面 .refresh 的完整规格，靠 margin-left:auto 顶到最右，
      关闭按钮紧跟其后（原先是关闭按钮自己 margin-left:auto） */
   .hm-head .hm-refresh { margin-left: auto; }
