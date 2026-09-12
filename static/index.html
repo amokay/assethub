@@ -328,19 +328,23 @@
            overflow: hidden; }
 
   .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }
-  /* 美元 / 人民币两个视图都是 4 张卡（总资产 / 总盈亏 / 当日盈亏 / 现金），排成一行 */
-  #summary, #summary-cn { grid-template-columns: repeat(4, 1fr); }
-  /* 后三张卡（总浮盈 / 当日盈亏 / 现金）内容右对齐：标题、数值、副文案统一贴卡片右缘，
-     与第一张「总资产」形成左右分庭的版式。
-     ⚠️ .label 是 flex，text-align 管不到它，必须用 justify-content:flex-end 才能让标题也靠右。 */
-  #summary .summary-card:nth-child(n+2),
-  #summary-cn .summary-card:nth-child(n+2) { text-align: right; }
-  #summary .summary-card:nth-child(n+2) .label,
-  #summary-cn .summary-card:nth-child(n+2) .label { justify-content: flex-end; }
+  /* 美元 / 人民币两个视图都是 4 张卡（总资产 / 总浮赢 / 当日盈亏 / 现金），排成一行 */
+  #summary, #summary-cn { grid-template-columns: repeat(4, 1fr); gap: 18px; }
+  /* 第 2 张「总浮赢」居中对齐，与左侧「总资产」形成左-中平衡；
+     后两张（当日盈亏 / 现金）保持右对齐，整体向右展开增加呼吸空间。
+     ⚠️ .label 是 flex，text-align 管不到它，必须用 justify-content 才能让标题也跟随。 */
+  #summary .summary-card:nth-child(2),
+  #summary-cn .summary-card:nth-child(2) { text-align: center; }
+  #summary .summary-card:nth-child(2) .label,
+  #summary-cn .summary-card:nth-child(2) .label { justify-content: center; }
+  #summary .summary-card:nth-child(n+3),
+  #summary-cn .summary-card:nth-child(n+3) { text-align: right; }
+  #summary .summary-card:nth-child(n+3) .label,
+  #summary-cn .summary-card:nth-child(n+3) .label { justify-content: flex-end; }
   /* 右对齐卡片里的铅笔要跟着标题当「一组」贴右缘：
      必须清掉 margin-right:auto —— 那是给左对齐版用的，会把这组甩到最左边 */
-  #summary .summary-card:nth-child(n+2) .cash-edit,
-  #summary-cn .summary-card:nth-child(n+2) .cash-edit { margin: 0 0 0 -6px; }
+  #summary .summary-card:nth-child(n+3) .cash-edit,
+  #summary-cn .summary-card:nth-child(n+3) .cash-edit { margin: 0 0 0 -6px; }
 
   /* 顶部市场 tab（美股 / A股），居左 + 滑动下划线 */
   .market-tabs { position: relative; display: flex; gap: 18px; margin: 2px 0 14px;
@@ -500,7 +504,9 @@
     header { padding: 14px 14px; gap: 8px 10px; }   /* 不换行：brand(两行) 与功能按钮同行，功能按钮垂直居中对齐 logo */
     .brand { flex-direction: column; align-items: flex-start; gap: 2px; flex: 1 1 auto; min-width: 0; }
     .brand h1 { margin-left: 0; }   /* logo 与 slogan 视觉左缘对齐（桌面端 h1 有 18px 左距，手机端去掉） */
-    .slogan { margin-left: 0; transform: none; align-self: auto; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+    .slogan { margin-left: 0; transform: none; align-self: stretch; max-width: none;
+               overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+               display: block; min-width: 0; }
     .header .spacer { display: none; }
     .header-actions { margin-left: auto; gap: 8px; flex: none; align-self: flex-start; margin-top: 3px; }   /* 功能按钮垂直中心与 logo 对齐，不再被两行 brand 挤到中间 */
     .cs-label { display: none; }   /* 省空间，保留切换轨道 */
@@ -519,11 +525,14 @@
 
     /* 6. 持仓标题：市值/当日盈亏 与标题上下排布、左对齐；
           添加 btn 右对齐、距右缘间距与左缘一致（4px） */
-    .sec-head { flex-wrap: wrap; position: relative; padding: 0 4px 6px; }
-    .sec-head h2 { flex: 1 1 100%; }
-    .sec-head .sec-nums { flex: 1 1 100%; margin-top: 2px; }
+    .sec-head { flex-wrap: wrap; position: relative; padding: 0 4px 6px; gap: 2px; }
+    .sec-head h2 { flex: 1 1 100%; margin-bottom: 0; }
+    .sec-head .sec-nums { flex: 1 1 100%; margin-top: 0; }
     .sec-head .spacer { display: none; }
     .sec-head .sec-add { position: absolute; right: 4px; top: -1px; }
+
+    /* 热力图头部按钮间距与主页 header-actions 一致（移动端 8px） */
+    .hm-head { gap: 8px; }
 
     /* 5. 基金在手机上不展示 K 线（spark） */
     #cards-funds .fund-spark, #cards-funds-cn .fund-spark { display: none; }
@@ -544,10 +553,9 @@
          color: var(--muted); vertical-align: middle; position: relative; top: -1px; }
   .summary-card .label .cash-edit svg { width: 14px; height: 14px; }
   .summary-card .label .cash-edit:hover { color: var(--text); }
-  /* logo 旁的 slogan：底部与 logo 底边对齐，微调下移 2px、左移 6px；中文加大字距 */
+  /* logo 旁的 slogan：继承 .brand 的 align-items（桌面 center / 移动端由 media query 单独控制） */
   .slogan { font-size: 14px; color: var(--muted); font-weight: 500;
-            margin-left: 0; letter-spacing: .4px; white-space: nowrap; align-self: flex-end;
-            transform: translateY(2px); }
+            margin-left: 0; letter-spacing: .4px; white-space: nowrap; }
   html[lang="zh"] .slogan { letter-spacing: 2px; }
   .eye:hover { color: var(--text); }
   /* 持仓区域「添加+」按钮（替代原虚线添加卡片，位于 sec-head 最右侧） */
@@ -570,9 +578,9 @@
 
   /* 新闻页 tag 切换栏：默认全部展开（手机端不截断）；选中 tag 或上滑后折叠成单行 sticky */
   .tabs { display: flex; gap: 8px; padding: 2px 4px 12px; flex-wrap: wrap; align-items: center; }
-  .tabs.collapsed { flex-wrap: nowrap; overflow-x: auto; max-height: none; padding-bottom: 8px;
+  .tabs.collapsed { flex-wrap: nowrap; overflow-x: auto; max-height: none; padding: 8px 4px 8px;
                     position: sticky; top: 0; z-index: 40; background: var(--bg);
-                    border-bottom: 1px solid var(--border); scrollbar-width: none;
+                    scrollbar-width: none;
                     -webkit-overflow-scrolling: touch; }
   .tabs.collapsed::-webkit-scrollbar { display: none; }
   .tabs.collapsed .tab-sep { display: none; }
