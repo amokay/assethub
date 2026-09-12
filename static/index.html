@@ -514,14 +514,14 @@
   /* ===================== 移动端适配 ===================== */
   @media (max-width: 620px) {
     /* 1. 头部：logo + slogan 上下排布、左对齐；右侧功能 btn 保持可点 */
-    header { padding: 14px 14px; gap: 8px 10px; }   /* 不换行：brand(两行) 与功能按钮同行，功能按钮垂直居中对齐 logo */
-    .brand { flex-direction: column; align-items: flex-start; gap: 2px; flex: 1 1 auto; min-width: 0; }
+    header { padding: 14px 14px; gap: 8px 10px; flex-wrap: wrap; position: relative; }   /* 移动端 brand 占满整行、slogan 第二行整宽不折行；actions 绝对定位右上角 */
+    .brand { flex-direction: column; align-items: flex-start; gap: 2px; flex: 1 1 100%; min-width: 0; }
     .brand h1 { margin-left: 0; }   /* logo 与 slogan 视觉左缘对齐（桌面端 h1 有 18px 左距，手机端去掉） */
     .brand .slogan { margin-left: 0; transform: none; align-self: stretch; max-width: none;
                overflow: visible; text-overflow: clip; white-space: normal;
                overflow-wrap: break-word; display: block; min-width: 0; }
     .header .spacer { display: none; }
-    .header-actions { margin-left: auto; gap: 8px; flex: none; align-self: flex-start; margin-top: 3px; }   /* 功能按钮垂直中心与 logo 对齐，不再被两行 brand 挤到中间 */
+    .header-actions { position: absolute; top: 12px; right: 14px; gap: 8px; flex: none; }   /* 脱离流固定右上角，slogan 可整宽第二行不折行 */
     .cs-label { display: none; }   /* 省空间，保留切换轨道 */
 
     /* 2. 美元/人民币 tab：tab 不折行；右侧更新时间、汇率两行右对齐 */
