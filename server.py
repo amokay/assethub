@@ -1072,6 +1072,8 @@ def get_heatmap():
         pf = get_portfolio()
         rate = float(pf.get("rate") or 7.0) or 7.0
         as_of = pf.get("as_of") or ""
+        cash = float(pf.get("cash", 0) or 0)          # get_portfolio 把美元现金挂在 "cash"
+        cash_cny = float(pf.get("cash_cny", 0) or 0)
         items = []
 
         def add(code, name, kind, market, mv_local, day_pct, day_date):
@@ -1110,6 +1112,13 @@ def get_heatmap():
             pct, d = _fund_day_pct(f, allow_bench=True)
             add(f.get("code"), f.get("name"), "fund", "cn",
                 f.get("market_value"), pct, d)
+
+        # 现金：美元现金 / 人民币现金各一块；无日涨跌（day_pct=None → 取中性灰），
+        # 跟随「现金」勾选框显隐，并按所属市场（美元/人民币）联动市场勾选框。
+        if cash > 0:
+            add("cash_usd", "现金·美元", "cash", "us", cash, None, "")
+        if cash_cny > 0:
+            add("cash_cny", "现金·人民币", "cash", "cn", cash_cny, None, "")
 
         # 排序：面积由大到小，热力图布局需要
         items.sort(key=lambda x: -x["mv_usd"])

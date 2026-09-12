@@ -694,6 +694,10 @@
       <input type="checkbox" checked onchange="hmSetFund(this.checked)">
       <span data-i18n="hm_fund">基金</span>
     </label>
+    <label class="hm-chk on" id="hm-chk-cash" title="">
+      <input type="checkbox" checked onchange="hmSetCash(this.checked)">
+      <span data-i18n="cash">现金</span>
+    </label>
     <div class="hm-legend">
       <span id="hm-leg-lo"></span><span class="ramp" id="hm-ramp"></span><span id="hm-leg-hi"></span>
     </div>
@@ -2112,8 +2116,8 @@ setInterval(loadMarketNewsIfActive, 300000);
 let hmData = null;                    // /api/heatmap 数据
 /* 顶部 checkbox：市场（美元/人民币）+ 类型（基金）。
    语义 = 「勾选的都会显示」：取消基金 → 只看股票；两个市场都取消、只留基金 → 只看基金。 */
-const hmOn = { us: true, cn: true, fund: true };
-const hmAnyOn = () => hmOn.us || hmOn.cn || hmOn.fund;
+const hmOn = { us: true, cn: true, fund: true, cash: true };
+const hmAnyOn = () => hmOn.us || hmOn.cn || hmOn.fund || hmOn.cash;
 const hmCells = new Map();            // key → DOM（复用元素，位移走 CSS 过渡）
 let hmIndex = new Map();              // key → item（hover 详情）
 
@@ -2150,6 +2154,9 @@ function cashEditBtn(market) {
 }
 
 function hmName(it) {
+  if (it.kind === 'cash') return lang === 'en'
+    ? 'Cash · ' + (it.market === 'cn' ? 'CNY' : 'USD')
+    : '现金 · ' + (it.market === 'cn' ? '人民币' : '美元');
   if (it.kind === 'stock') return (lang === 'en' && STOCK_EN[it.code]) || it.name;
   return ((lang === 'en' ? HM_SHORT_EN : HM_SHORT_ZH)[it.code]) || it.name;
 }
@@ -2413,12 +2420,16 @@ function hmApplyStatic() {
   $('hm-chk-us').classList.toggle('on', hmOn.us);
   $('hm-chk-cn').classList.toggle('on', hmOn.cn);
   $('hm-chk-fd').classList.toggle('on', hmOn.fund);
+  $('hm-chk-cash').classList.toggle('on', hmOn.cash);
   const noMkt = !hmOn.us && !hmOn.cn;
   $('hm-chk-fd').title = !hmOn.fund
     ? (en ? 'Funds hidden — check to restore' : '已隐藏基金，勾选恢复')
     : noMkt
       ? (en ? 'Funds only — check USD/CNY to add stocks' : '只看基金；勾选美元/人民币可加入股票')
       : (en ? 'Uncheck to show stocks only' : '取消勾选只看股票');
+  $('hm-chk-cash').title = !hmOn.cash
+    ? (en ? 'Cash hidden — check to restore' : '已隐藏现金，勾选恢复')
+    : (en ? 'Uncheck to hide cash' : '取消勾选隐藏现金');
   document.documentElement.style.overflow = $('hm-mask').classList.contains('open') ? 'hidden' : '';
 }
 
@@ -2481,6 +2492,12 @@ function hmSetFund(on) {
   hmApplyStatic();
   hmDraw(true);
 }
+function hmSetCash(on) {
+  hmOn.cash = !!on;
+  if (!hmAnyOn()) { hmOn.cash = true; $('hm-chk-cash').querySelector('input').checked = true; }
+  hmApplyStatic();
+  hmDraw(true);
+}
 function hmPaintCell(el, it, w, h) {
   const pct = it.day_pct;
   const has = !(pct === null || pct === undefined || isNaN(pct));
@@ -2495,6 +2512,7 @@ function hmPaintCell(el, it, w, h) {
    两个市场都取消时市场过滤让位给「基金」→ 结果就是全部基金（只看基金） */
 function hmShow(i) {
   if (i.kind === 'fund') return hmOn.fund && (!hmOn.us && !hmOn.cn || hmOn[i.market]);
+  if (i.kind === 'cash') return hmOn.cash && hmOn[i.market];
   return hmOn[i.market];
 }
 
@@ -2618,8 +2636,10 @@ function hmShowPop(el, ev) {
       + (it.cur === 'CNY' ? ` <span style="color:var(--muted)">≈ $${fmt(Math.round(it.mv_usd))}</span>` : '');
   const c = cls(pct);
   const col = !has ? 'var(--muted)' : (c === 'up' ? 'var(--up)' : c === 'down' ? 'var(--down)' : 'var(--text)');
+  const codeShown = it.kind === 'cash' ? (it.market === 'cn' ? 'CNY' : 'USD') : it.code;
+  const kindLabel = it.kind === 'fund' ? _t('funds') : it.kind === 'cash' ? _t('cash') : _t('stocks');
   pop.innerHTML = `<b>${esc(hmName(it))}</b>`
-    + `<div class="row"><span>${esc(it.code)}</span><i>${it.kind === 'fund' ? _t('funds') : _t('stocks')}</i></div>`
+    + `<div class="row"><span>${esc(codeShown)}</span><i>${kindLabel}</i></div>`
     + `<div class="row"><span>${_t('hm_mv')}</span><i>${mv}</i></div>`
     + `<div class="row"><span>${_t('hm_chg')}</span><i style="color:${col}">`
     + `${has ? ((pct >= 0 ? '+' : '') + pct.toFixed(2) + '%') : '—'}</i></div>`
