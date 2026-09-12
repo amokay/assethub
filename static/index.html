@@ -204,7 +204,7 @@
   .flip .card.back .b-row { display: flex; justify-content: space-between; align-items: center;
                             font-size: 13.5px; padding: 3px 0;
                             border-bottom: 1px solid rgba(255,255,255,.05); }
-  .flip .card.back .b-row:last-of-type { border-bottom: none; }
+  .flip .card.back .b-row.b-pnl { border-bottom: none; }   /* 盈亏(数据末行)下面无线；:last-of-type 因 b-actions 是末个div而失效 */
   .flip .card.back .b-row span { color: var(--muted); font-size: 12px; }
   .flip .card.back .b-row b { font-weight: 600; font-size: 14px; }
   .flip .card.back .b-actions { display: flex; gap: 8px; margin-top: 14px; }
@@ -1123,9 +1123,9 @@ function renderSummaryCn(t) {
       <div class="b-row"><span>${_t('hold_shares')}</span><b>${s.shares} 股</b></div>
       <div class="b-row"><span>${_t('cost_price')}</span><b>${s.costp.toFixed(4)}</b></div>
       ${miss
-        ? '<div class="b-row"><span>' + _t('pnl') + '</span><b>' + _t('no_quote') + '</b></div>'
+        ? '<div class="b-row b-pnl"><span>' + _t('pnl') + '</span><b>' + _t('no_quote') + '</b></div>'
         : `<div class="b-row"><span>${_t('mkt_value')}</span><b>${fmtNoSym(s.mv)}</b></div>
-           <div class="b-row ${cls(s.pnl)}"><span>${_t('pnl')}</span><b>${fmtPct(pnlPct)}</b></div>`}`;
+           <div class="b-row ${cls(s.pnl)} b-pnl"><span>${_t('pnl')}</span><b>${fmtPct(pnlPct)}</b></div>`}`;
     return `<div class="flip" onclick="flipCard(this)">
       <div class="flip-inner">
         ${front}
@@ -1425,7 +1425,7 @@ function renderFrames(meta) {
             <div class="b-code">${s.code}</div>
             <div class="b-row"><span>${_t('hold_shares')}</span><b>${s.shares} 股</b></div>
             <div class="b-row"><span>${_t('cost_price')}</span><b>${s.costp.toFixed(2)}</b></div>
-            <div class="b-row"><span>${_t('pnl')}</span><b>加载中…</b></div>
+            <div class="b-row b-pnl"><span>${_t('pnl')}</span><b>加载中…</b></div>
           </div>
         </div>
       </div>`).join('');
@@ -1448,7 +1448,7 @@ function renderFrames(meta) {
             <div class="b-code">${s.code.replace(/^(sh|sz|bj)/, '')}</div>
             <div class="b-row"><span>${_t('hold_shares')}</span><b>${s.shares} 股</b></div>
             <div class="b-row"><span>${_t('cost_price')}</span><b>${s.costp.toFixed(4)}</b></div>
-            <div class="b-row"><span>${_t('pnl')}</span><b>加载中…</b></div>
+            <div class="b-row b-pnl"><span>${_t('pnl')}</span><b>加载中…</b></div>
           </div>
         </div>
       </div>`).join('');
@@ -1519,9 +1519,9 @@ async function loadPortfolio(force) {
       <div class="b-row"><span>${_t('hold_shares')}</span><b>${s.shares} 股</b></div>
       <div class="b-row"><span>${_t('cost_price')}</span><b>${s.costp.toFixed(2)}</b></div>
       ${miss
-        ? '<div class="b-row"><span>' + _t('pnl') + '</span><b>' + _t('no_quote') + '</b></div>'
+        ? '<div class="b-row b-pnl"><span>' + _t('pnl') + '</span><b>' + _t('no_quote') + '</b></div>'
         : `<div class="b-row"><span>${_t('mkt_value')}</span><b>${fmtNoSym(s.mv)}</b></div>
-           <div class="b-row ${cls(s.pnl)}"><span>${_t('pnl')}</span><b>${fmtPct(pnlPct)}</b></div>`}`;
+           <div class="b-row ${cls(s.pnl)} b-pnl"><span>${_t('pnl')}</span><b>${fmtPct(pnlPct)}</b></div>`}`;
     return `<div class="flip" onclick="flipCard(this)">
       <div class="flip-inner">
         ${front}
