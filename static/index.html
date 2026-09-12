@@ -195,9 +195,9 @@
   .flip:hover .price .txt-view, .flip.mobile-hover .price .txt-view { visibility: visible; }
   .flip:hover .card.front .front-kline,
   .flip.mobile-hover .card.front .front-kline { opacity: .85; transform: translateY(0); }
-  .flip .card.back { background: var(--card-hover); justify-content: flex-start;
+  .flip .card.back { background: var(--card-hover); justify-content: center;
                      align-items: stretch; text-align: left; overflow: hidden;
-                     padding-bottom: 14px; }
+                     padding: 14px; }
   .flip .card.back .b-title { font-size: 15px; font-weight: 700; margin-bottom: 5px; }
   .flip .card.back .b-code { font-size: 18px; font-weight: 700; letter-spacing: .3px;
                              margin-bottom: 6px; color: #fff; }
@@ -207,7 +207,7 @@
   .flip .card.back .b-row:last-of-type { border-bottom: none; }
   .flip .card.back .b-row span { color: var(--muted); font-size: 12px; }
   .flip .card.back .b-row b { font-weight: 600; font-size: 14px; }
-  .flip .card.back .b-actions { display: flex; gap: 8px; margin-top: auto; }
+  .flip .card.back .b-actions { display: flex; gap: 8px; margin-top: 14px; }
   .flip .card.back .b-edit, .flip .card.back .b-del { flex: 1; border-radius: 8px;
                             padding: 5px 0; font-size: 12px; font-weight: 600; cursor: pointer; }
   .flip .card.back .b-edit { background: rgba(255,255,255,.1); color: #fff;
@@ -558,6 +558,15 @@
 
     /* 5. 基金在手机上不展示 K 线（spark） */
     #cards-funds .fund-spark, #cards-funds-cn .fund-spark { display: none; }
+
+    /* 6b. 股票卡背面：信息已垂直居中、上下间距一致；手机上收紧字号/行距，避免小卡拥挤溢出 */
+    .flip .card.back { padding: 12px 12px; }
+    .flip .card.back .b-code { font-size: 16px; margin-bottom: 4px; }
+    .flip .card.back .b-row { font-size: 12.5px; padding: 2px 0; }
+    .flip .card.back .b-row span { font-size: 11px; }
+    .flip .card.back .b-row b { font-size: 13px; }
+    .flip .card.back .b-actions { margin-top: 12px; }
+    .flip .card.back .b-edit, .flip .card.back .b-del { padding: 4px 0; font-size: 11px; }
   }
   .eye { background: none; border: none; cursor: pointer; padding: 0; margin-left: 5px;
          display: inline-flex; align-items: center; color: var(--muted);
