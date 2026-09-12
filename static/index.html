@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AssetHub</title>
+<link rel="icon" type="image/png" href="/static/app-icon-512.png">
+<link rel="apple-touch-icon" href="/static/app-icon-180.png">
+<link rel="manifest" href="/static/manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="AssetHub">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0c0c0e">
+<meta name="mobile-web-app-capable" content="yes">
 <style>
   :root {
     --bg: #0c0c0e; --card: #1c1c1f; --card-hover: #232326;
@@ -18,6 +26,9 @@
   header { background: rgba(12,12,14,.85); backdrop-filter: blur(18px);
            border-bottom: 1px solid var(--border); padding: 24px 18px;
            display: flex; align-items: center; gap: 12px; }
+  /* 品牌区（logo + slogan）与右侧操作区各自成组，便于移动端单独排布 */
+  .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .header-actions { display: flex; align-items: center; gap: 12px; flex: none; }
   .top-sticky { position: sticky; top: 0; z-index: 50; background: rgba(12,12,14,.92);
                 backdrop-filter: blur(18px); }
   .top-sticky header { background: transparent; }
@@ -157,14 +168,19 @@
   .card.front .front-kline svg { width: 100%; height: 100%; display: block; }
   .card.front .code, .card.front .name, .card.front .price, .card.front .change {
     transition: transform .28s ease-out; }
-  /* hover 上移用 GPU 合成（translate3d）平滑执行 */
+  /* hover 上移用 GPU 合成（translate3d）平滑执行；移动端用 .mobile-hover 复刻同一套 */
   .flip:hover .card.front .code,
   .flip:hover .card.front .name,
   .flip:hover .card.front .price,
-  .flip:hover .card.front .change {
+  .flip:hover .card.front .change,
+  .flip.mobile-hover .card.front .code,
+  .flip.mobile-hover .card.front .name,
+  .flip.mobile-hover .card.front .price,
+  .flip.mobile-hover .card.front .change {
     transform: translate3d(0, -24px, 0); }
   /* hover 时价格滚轮静态化：暂停容器与滚条的 transition，杜绝嵌套 transform 触发合成层重绘 */
-  .flip:hover .od, .flip:hover .od .strip { transition: none !important; }
+  .flip:hover .od, .flip:hover .od .strip,
+  .flip.mobile-hover .od, .flip.mobile-hover .od .strip { transition: none !important; }
   /* 根治闪烁：hover 时价格从滚轮结构切换为纯文本显示（滚轮合成层不参与 transform 动画） */
   .price { position: relative; }
   .price .txt-view { visibility: hidden; position: absolute; left: 0; top: 0;
@@ -175,9 +191,10 @@
              border-radius: 50%; animation: pl-rot .7s linear infinite;
              vertical-align: 2px; }
   @keyframes pl-rot { to { transform: rotate(360deg); } }
-  .flip:hover .price .od-view { visibility: hidden; }
-  .flip:hover .price .txt-view { visibility: visible; }
-  .flip:hover .card.front .front-kline { opacity: .85; transform: translateY(0); }
+  .flip:hover .price .od-view, .flip.mobile-hover .price .od-view { visibility: hidden; }
+  .flip:hover .price .txt-view, .flip.mobile-hover .price .txt-view { visibility: visible; }
+  .flip:hover .card.front .front-kline,
+  .flip.mobile-hover .card.front .front-kline { opacity: .85; transform: translateY(0); }
   .flip .card.back { background: var(--card-hover); justify-content: flex-start;
                      align-items: stretch; text-align: left; overflow: hidden;
                      padding-bottom: 14px; }
@@ -370,10 +387,13 @@
   /* gap 与页面 header 的按钮间距一致 */
   .hm-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 0 2px 6px; }
   /* 标题 16 → 20px；行高显式定死，避免撑高标题行把筛选条往下推 */
-  .hm-title { font-size: 20px; font-weight: 700; letter-spacing: -.3px; line-height: 1.25; }
-  .hm-title .cnt { font-size: 13px; font-weight: 500; color: var(--muted); margin-left: 9px; }
+  /* 标题与「总资产数字 + 眼睛」上下排布、左对齐（总资产数字移到标题下方） */
+  .hm-title { font-size: 20px; font-weight: 700; letter-spacing: -.3px; line-height: 1.25;
+              display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+  .hm-title .hm-t-sub { display: flex; align-items: center; gap: 7px; }
+  .hm-title .cnt { font-size: 13px; font-weight: 500; color: var(--muted); margin-left: 0; }
   /* 标题旁的总额眼睛：直接复用页面既有的 .eye 规格 */
-  .hm-title .eye { top: 0; }
+  .hm-title .eye { top: 0; margin-left: 0; }
   /* 眼睛随标题一起放大一档（全局 .eye svg 是 14px） */
   .hm-title .eye svg { width: 16px; height: 16px; }
   /* 右上角操作区：刷新按钮沿用页面 .refresh 的完整规格，靠 margin-left:auto 顶到最右，
@@ -473,6 +493,40 @@
     .hm-mask { padding: 12px 10px 14px; }
     .hm-legend { display: none; }
   }
+
+  /* ===================== 移动端适配 ===================== */
+  @media (max-width: 620px) {
+    /* 1. 头部：logo + slogan 上下排布、左对齐；右侧功能 btn 保持可点 */
+    header { padding: 14px 14px; gap: 8px 10px; flex-wrap: wrap; }
+    .brand { flex-direction: column; align-items: flex-start; gap: 2px; }
+    .slogan { margin-left: 0; transform: none; align-self: auto; }
+    .header .spacer { display: none; }
+    .header-actions { margin-left: auto; gap: 8px; flex: none; }
+    .cs-label { display: none; }   /* 省空间，保留切换轨道 */
+
+    /* 2. 美元/人民币 tab：tab 不折行；右侧更新时间、汇率两行右对齐 */
+    .market-tabs { gap: 14px; }
+    #as-of { flex-direction: column; align-items: flex-end; text-align: right;
+             gap: 1px; line-height: 1.35; white-space: nowrap; }
+    #as-of .asof-sep { display: none; }
+
+    /* 3. 资产栏：2 排 × 2，平均展示，四张卡统一左对齐 */
+    #summary, #summary-cn { grid-template-columns: repeat(2, 1fr); }
+    #summary .summary-card:nth-child(n+2), #summary-cn .summary-card:nth-child(n+2) { text-align: left; }
+    #summary .summary-card:nth-child(n+2) .label,
+    #summary-cn .summary-card:nth-child(n+2) .label { justify-content: flex-start; }
+
+    /* 6. 持仓标题：市值/当日盈亏 与标题上下排布、左对齐；
+          添加 btn 右对齐、距右缘间距与左缘一致（4px） */
+    .sec-head { flex-wrap: wrap; position: relative; padding: 0 4px 6px; }
+    .sec-head h2 { flex: 1 1 100%; }
+    .sec-head .sec-nums { flex: 1 1 100%; margin-top: 2px; }
+    .sec-head .spacer { display: none; }
+    .sec-head .sec-add { position: absolute; right: 4px; top: -1px; }
+
+    /* 5. 基金在手机上不展示 K 线（spark） */
+    #cards-funds .fund-spark, #cards-funds-cn .fund-spark { display: none; }
+  }
   .eye { background: none; border: none; cursor: pointer; padding: 0; margin-left: 5px;
          display: inline-flex; align-items: center; color: var(--muted);
          vertical-align: middle; position: relative; top: -1px; }
@@ -491,7 +545,7 @@
   .summary-card .label .cash-edit:hover { color: var(--text); }
   /* logo 旁的 slogan：底部与 logo 底边对齐，微调下移 2px、左移 6px；中文加大字距 */
   .slogan { font-size: 14px; color: var(--muted); font-weight: 500;
-            margin-left: 12px; letter-spacing: .4px; white-space: nowrap; align-self: flex-end;
+            margin-left: 0; letter-spacing: .4px; white-space: nowrap; align-self: flex-end;
             transform: translateY(2px); }
   html[lang="zh"] .slogan { letter-spacing: 2px; }
   .eye:hover { color: var(--text); }
@@ -545,27 +599,31 @@
 <body>
 <div class="top-sticky">
 <header>
-  <h1><img src="/static/logo.png" alt="AssetHub" class="logo"><span class="logo-dot" aria-hidden="true"></span></h1>
-  <span class="slogan" data-i18n="slogan">便捷监控你的资产变化</span>
-  <span class="spacer"></span>
-  <span class="color-switch mode-up-red" id="cs" onclick="toggleColorMode()" title="切换涨跌配色">
-    <span class="cs-label" id="cs-label">涨红跌绿</span>
-    <span class="cs-track"><span class="cs-thumb"></span></span>
-  </span>
-  <div class="lang-wrap" id="lang-wrap">
-    <button class="refresh" id="lang-btn" onclick="toggleLangMenu()">
-      <span id="lang-txt">中文</span>
-      <svg class="caret" viewBox="0 0 12 12" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg>
-    </button>
-    <div class="lang-menu" id="lang-menu" style="display:none">
-      <div class="lang-item" onclick="setLang('zh')">中文</div>
-      <div class="lang-item" onclick="setLang('en')">English</div>
-    </div>
+  <div class="brand">
+    <h1><img src="/static/logo.png" alt="AssetHub" class="logo"><span class="logo-dot" aria-hidden="true"></span></h1>
+    <span class="slogan" data-i18n="slogan">便捷监控你的资产变化</span>
   </div>
-  <button class="refresh" onclick="refreshAll(event)">
-    <span data-i18n="refresh">刷新</span>
-    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>
-  </button>
+  <span class="spacer"></span>
+  <div class="header-actions">
+    <span class="color-switch mode-up-red" id="cs" onclick="toggleColorMode()" title="切换涨跌配色">
+      <span class="cs-label" id="cs-label">涨红跌绿</span>
+      <span class="cs-track"><span class="cs-thumb"></span></span>
+    </span>
+    <div class="lang-wrap" id="lang-wrap">
+      <button class="refresh" id="lang-btn" onclick="toggleLangMenu()">
+        <span id="lang-txt">中文</span>
+        <svg class="caret" viewBox="0 0 12 12" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg>
+      </button>
+      <div class="lang-menu" id="lang-menu" style="display:none">
+        <div class="lang-item" onclick="setLang('zh')">中文</div>
+        <div class="lang-item" onclick="setLang('en')">English</div>
+      </div>
+    </div>
+    <button class="refresh" onclick="refreshAll(event)">
+      <span data-i18n="refresh">刷新</span>
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>
+    </button>
+  </div>
 </header>
 <div class="ticker-wrap"><div class="ticker" id="ticker"><span class="meta" style="padding:0 16px" data-i18n="loading_news">新闻加载中…</span></div></div>
 </div>
@@ -1009,7 +1067,7 @@ function renderSummaryCn(t) {
           <div class="name">${stkName(s)}</div>
           <div class="price ${c}" data-flip="${s.code}" data-px="${fmt3(s.price)}">${fmt3(s.price)}</div>
           <div class="change ${c}">
-            <span>${s.chg >= 0 ? '+' : '-'} ${fmtNoSym(Math.abs(s.chg))} (${fmtPct(s.chg_pct)})</span>
+            <span>${fmtPct(s.chg_pct)}</span>
           </div>
           <div class="front-kline" data-kline="${s.code}"></div>
         </div>`;
@@ -1019,7 +1077,7 @@ function renderSummaryCn(t) {
       ${miss
         ? '<div class="b-row"><span>' + _t('pnl') + '</span><b>' + _t('no_quote') + '</b></div>'
         : `<div class="b-row"><span>${_t('mkt_value')}</span><b>${fmtNoSym(s.mv)}</b></div>
-           <div class="b-row ${cls(s.pnl)}"><span>${_t('pnl')}</span><b>${fmtNoSymS(s.pnl)} (${fmtPct(pnlPct)})</b></div>`}`;
+           <div class="b-row ${cls(s.pnl)}"><span>${_t('pnl')}</span><b>${fmtPct(pnlPct)}</b></div>`}`;
     return `<div class="flip" onclick="flipCard(this)">
       <div class="flip-inner">
         ${front}
@@ -1379,7 +1437,9 @@ async function loadPortfolio(force) {
   try { portfolio = await api('/api/portfolio' + (force ? '?force=1' : '')); }
   catch (e) { toast(_t('fail_quote') + e.message); document.querySelectorAll('.pl-spin').forEach(s => s.remove()); return; }
   const t = portfolio.totals;
-  $('as-of').textContent = `${_t('updated')} ${portfolio.as_of || '--'} ｜ USD/CNY ${portfolio.rate}`;
+  $('as-of').innerHTML = `<span class="asof-time">${_t('updated')} ${portfolio.as_of || '--'}</span>`
+    + `<span class="asof-sep">｜</span>`
+    + `<span class="asof-rate">USD/CNY ${portfolio.rate}</span>`;
 
   renderSummary(t, portfolio.rate);
   renderSummaryCn(portfolio.cn_totals || {mv: 0, pnl: 0, pnl_pct: 0, day_pnl: 0});
@@ -1402,7 +1462,7 @@ async function loadPortfolio(force) {
           <div class="name">${stkName(s)}</div>
           <div class="price ${c}" data-flip="${s.code}" data-px="${fmt(s.price)}">${fmt(s.price)}</div>
           <div class="change ${c}">
-            <span>${s.chg >= 0 ? '+' : '-'} ${fmtNoSym(Math.abs(s.chg))} (${fmtPct(s.chg_pct)})</span>
+            <span>${fmtPct(s.chg_pct)}</span>
           </div>
           <div class="front-kline" data-kline="${s.code}"></div>
         </div>`;
@@ -1413,7 +1473,7 @@ async function loadPortfolio(force) {
       ${miss
         ? '<div class="b-row"><span>' + _t('pnl') + '</span><b>' + _t('no_quote') + '</b></div>'
         : `<div class="b-row"><span>${_t('mkt_value')}</span><b>${fmtNoSym(s.mv)}</b></div>
-           <div class="b-row ${cls(s.pnl)}"><span>${_t('pnl')}</span><b>${fmtNoSymS(s.pnl)} (${fmtPct(pnlPct)})</b></div>`}`;
+           <div class="b-row ${cls(s.pnl)}"><span>${_t('pnl')}</span><b>${fmtPct(pnlPct)}</b></div>`}`;
     return `<div class="flip" onclick="flipCard(this)">
       <div class="flip-inner">
         ${front}
@@ -1434,6 +1494,7 @@ async function loadPortfolio(force) {
   renderFundsCn();
   renderSectionNums();
   buildNewsTabs();
+  mobileHoverSync();   // 渲染后按当前滚动位置点亮移动端 hover
 }
 
 /* 价格计数器滚轮：只翻转变化的数字位，未变化的位静止显示 */
@@ -1696,6 +1757,36 @@ function flipCard(el) {
   el.classList.toggle('flipped');
   clearTimeout(el._flipT);
   el._flipT = setTimeout(() => el.classList.remove('flipping'), 600);  // 翻转完成恢复
+  if (el.classList.contains('flipped')) el.classList.remove('mobile-hover');  // 翻到背面就不再显示正面 hover
+}
+
+/* 移动端随动 hover：手机没有 hover，股票卡片滑到屏幕上方（未被头部新闻栏压住）时，
+   自动套用与桌面 hover 同一套视觉（信息上移 + K 线渐现 + 价格转静态文本）；
+   被 sticky 头部（含滚动新闻条）盖住时立即熄灭。规则：卡片整体落在「头部下缘 ~ 视口」之间即点亮。 */
+let _mhBound = false;
+function mobileHoverSync() {
+  if (window.innerWidth > 620) return;   // 仅移动端生效
+  const ts = document.querySelector('.top-sticky');
+  if (!ts) return;
+  const topBottom = ts.getBoundingClientRect().bottom;
+  const vh = window.innerHeight || document.documentElement.clientHeight;
+  const NEAR = vh * 0.62;               // 卡片中心落在头部下缘到视口 62% 区间才点亮（≈ 屏幕上半部）
+  document.querySelectorAll('.flip').forEach(el => {
+    if (el.classList.contains('flipped')) { el.classList.remove('mobile-hover'); return; }
+    const r = el.getBoundingClientRect();
+    const visible = r.bottom > topBottom && r.top < NEAR && r.bottom <= vh + 1;
+    el.classList.toggle('mobile-hover', visible);
+  });
+}
+function bindMobileHover() {
+  if (_mhBound) return; _mhBound = true;
+  let ticking = false;
+  const onScroll = () => {
+    if (ticking) return; ticking = true;
+    requestAnimationFrame(() => { mobileHoverSync(); ticking = false; });
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll);
 }
 
 let delCode = null;
@@ -2057,6 +2148,7 @@ function switchMarketTab(k) {
   // 切到可见视图后重新触发价格翻动动画（隐藏元素动画不播放）
   requestAnimationFrame(() => applyPriceFlips());
   moveMtabSlider();
+  mobileHoverSync();   // 切换视图后重新按滚动位置点亮移动端 hover
 }
 
 function refreshAll(ev) {
@@ -2100,6 +2192,7 @@ loadNewsByTag({ dataset: { k: '__us__' } });   // News 默认加载美股新闻
 loadPreference();
 applyColorMode();
 moveMtabSlider();
+bindMobileHover();     // 绑定移动端滚动随动 hover（scroll/resize → 点亮/熄灭股票卡片）
 // 悬停暂停滚动（JS 控制，避免 animation-play-state 的跳动）
 const tickerWrap = document.querySelector('.ticker-wrap');
 tickerWrap.addEventListener('mouseenter', () => { tickerPaused = true; });
@@ -2403,11 +2496,12 @@ function fitHmText(name, chg, w, h) {
 function hmApplyStatic() {
   const en = lang === 'en';
   const eyeTip = _t(hideSec ? 'eye_show' : 'eye_hide');
-  /* 标题右侧：总市值 + 眼睛（复用页面既有的 .eye 规格与 eyeOpen/eyeClosed 图标） */
-  $('hm-title').innerHTML = esc(_t('hm_title'))
-    + '<span class="cnt" id="hm-cnt"></span>'
+  /* 标题在上、「总资产数字 + 眼睛」在下，整体左对齐（总资产数字移到标题下方） */
+  $('hm-title').innerHTML =
+    `<div class="hm-t-main">${esc(_t('hm_title'))}</div>`
+    + `<div class="hm-t-sub"><span class="cnt" id="hm-cnt"></span>`
     + `<button class="eye" id="hm-eye" onclick="hmToggleSec()" title="${esc(eyeTip)}">`
-    + (hideSec ? eyeClosed : eyeOpen) + '</button>';
+    + (hideSec ? eyeClosed : eyeOpen) + '</button></div>';
   $('hm-leg-lo').textContent = lang === 'en' ? 'Down' : '跌';
   $('hm-leg-hi').textContent = lang === 'en' ? 'Up' : '涨';
   // 图例 = 8 格离散色阶（左跌右涨），直接复用 hmRamps() 那两套 → 天然跟随配色反转
