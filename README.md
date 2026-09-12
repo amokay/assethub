@@ -83,6 +83,7 @@ cp sample/portfolio.json data/portfolio.json
 
 - **收不到系统通知**：首次使用在「系统设置 → 通知」允许通知权限
 - **端口占用**：默认 8765，可设环境变量 `ASSETHUB_PORT` 修改
+- **手机/局域网访问保护**：默认绑 `0.0.0.0`（同 WiFi 下手机可访问）。如需防止同网络他人窥探持仓，设 `ASSETHUB_PASSWORD=你的口令` 即可启用 HTTP Basic 鉴权——**仅对局域网/手机端生效，本机 `127.0.0.1` 桌面端始终免验证**。不设则不开启，向后兼容。
 
 ### 数据源与免责声明
 
@@ -170,6 +171,7 @@ cp sample/portfolio.json data/portfolio.json
 
 - **No system notifications?** Allow notification permission in System Settings → Notifications on first use
 - **Port already in use?** Default is 8765; override with the `ASSETHUB_PORT` environment variable
+- **Phone / LAN access protection:** Bound to `0.0.0.0` by default (phone on same Wi-Fi can open it). To stop others on the network from seeing your holdings, set `ASSETHUB_PASSWORD=your_password` to enable HTTP Basic auth — **it only applies to LAN/phone clients; the local desktop at `127.0.0.1` is always exempt**. Unset = no auth (backward compatible).
 
 ### Data Sources & Disclaimer
 

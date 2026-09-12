@@ -1710,9 +1710,43 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _require_auth(self):
+        """访问鉴权：仅当 ASSETHUB_PASSWORD 非空时对局域网/手机端生效，本机 localhost 免验证。
+        未设置口令则完全不开启鉴权（向后兼容；公开仓库无硬编码密码）。"""
+        import base64
+        if not PASSWORD:
+            return True
+        if self.client_address[0] in ("127.0.0.1", "::1", "localhost"):
+            return True
+        auth = self.headers.get("Authorization", "")
+        if auth.startswith("Basic "):
+            try:
+                decoded = base64.b64decode(auth[6:]).decode("utf-8", "ignore")
+                pw = decoded.split(":", 1)[1] if ":" in decoded else decoded
+                if pw == PASSWORD:
+                    return True
+            except Exception:
+                pass
+        body = ("<html><head><meta charset='utf-8'>"
+                "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+                "<title>401</title></head><body style='margin:0;height:100vh;"
+                "display:flex;align-items:center;justify-content:center;"
+                "background:#0c0c0e;color:#f5f5f7;font-family:-apple-system,sans-serif'>"
+                "<div style='text-align:center'>AssetHub 需要访问口令</div></body></html>"
+                ).encode("utf-8")
+        self.send_response(401)
+        self.send_header("WWW-Authenticate", 'Basic realm="AssetHub"')
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+        return False
+
     def do_GET(self):
         path = self.path.split("?")[0]
         try:
+            if not self._require_auth():
+                return
             if path in ("/", "/index.html"):
                 with open(os.path.join(ROOT, "static", "index.html"), "rb") as fp:
                     self._html(fp.read())
@@ -1802,6 +1836,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         path = self.path.split("?")[0]
         try:
+            if not self._require_auth():
+                return
             if path == "/api/stock":
                 length = int(self.headers.get("Content-Length", 0))
                 body = json.loads(self.rfile.read(length).decode("utf-8"))
@@ -1994,6 +2030,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_DELETE(self):
         path = self.path.split("?")[0]
         try:
+            if not self._require_auth():
+                return
             if path == "/api/stock":
                 from urllib.parse import urlparse, parse_qs
                 q = parse_qs(urlparse(self.path).query)
@@ -2023,6 +2061,7 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"error": str(e)}, 500)
 
 HOST = os.environ.get("ASSETHUB_HOST", "0.0.0.0")
+PASSWORD = os.environ.get("ASSETHUB_PASSWORD", "")  # 非空才启用局域网鉴权；本机 localhost 始终免验证
 
 def lan_ip():
     """获取本机局域网 IP（供手机等设备访问）"""
