@@ -2191,7 +2191,10 @@ function bindNewsScroll() {
   const onScroll = () => {
     if (ticking) return; ticking = true;
     requestAnimationFrame(() => {
-      if ($('page-news').style.display !== 'none' && window.scrollY > 40) setTabCollapsed(true);
+      if ($('page-news').style.display !== 'none') {
+        if (window.scrollY > 40) setTabCollapsed(true);
+        else setTabCollapsed(false);   // 回滚到顶部 → 平铺展开，与初始状态一致
+      }
       ticking = false;
     });
   };
