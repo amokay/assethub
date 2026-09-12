@@ -527,10 +527,12 @@
     .header-actions { position: absolute; top: 12px; right: 14px; gap: 8px; flex: none; }   /* 脱离流固定右上角，slogan 可整宽第二行不折行 */
     .cs-label { display: none; }   /* 省空间，保留切换轨道 */
 
-    /* 2. 美元/人民币 tab：tab 不折行；右侧更新时间、汇率两行右对齐 */
-    .market-tabs { gap: 14px; }
-    #as-of { flex-direction: column; align-items: flex-end; text-align: right;
-             gap: 1px; line-height: 1.35; white-space: nowrap; }
+    /* 2. 美元/人民币 tab：胶囊最小宽度 + 文字不折行；as-of 折到独立一行，时间/汇率各一行右对齐 */
+    .market-tabs { flex-wrap: wrap; gap: 14px; }
+    .market-tabs .spacer { display: none; }   /* 移动端不靠 spacer 顶 as-of，改为 as-of 独立换行 */
+    .mtab { min-width: 84px; white-space: nowrap; text-align: center; }
+    #as-of { flex-basis: 100%; display: flex; flex-direction: column; align-items: flex-end;
+             text-align: right; gap: 1px; line-height: 1.35; white-space: normal; }
     #as-of .asof-sep { display: none; }
 
     /* 3. 资产栏：2 排 × 2，平均展示，四张卡统一左对齐 */
