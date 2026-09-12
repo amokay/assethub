@@ -619,14 +619,11 @@
                     scrollbar-width: none;
                     -webkit-overflow-scrolling: touch; }
   .tabs.collapsed::-webkit-scrollbar { display: none; }
-  .tabs.collapsed .tab-sep { display: none; }
   .tab { border: 1px solid var(--border); border-radius: 8px; padding: 4px 12px;
          font-size: 12px; cursor: pointer; color: var(--muted); background: transparent;
          transition: all .15s; white-space: nowrap; flex: none; }
   .tab:hover { color: var(--text); border-color: rgba(255,255,255,.2); }
   .tab.active { background: #fff; color: #1c1c1e; border-color: #fff; }
-  .tab-sep { font-size: 11px; color: var(--muted); padding: 0 4px; align-self: center;
-             user-select: none; letter-spacing: .5px; flex: none; }
   .tab-empty { font-size: 12px; color: var(--muted); padding: 4px 2px; }
   .news-list { padding: 2px 4px 14px; }
   .news-item { padding: 9px 0; border-bottom: 1px solid rgba(255,255,255,.05); }
@@ -2044,16 +2041,16 @@ function shortFundName(name) {
 
 function buildNewsTabs() {
   if (!portfolio) return;
-  // 只保留「市场」(美股/A股) + 「领域」(持仓行业关键词) 两组，移除杂乱的个股代码 tab
-  // （个股新闻从持仓卡片点击进入，已有专门入口 loadStockNews）。tab-sep 做分组标题，结构清晰。
+  // 只保留「市场」(美股/A股) + 「领域」(持仓行业关键词) 两组 tag，移除杂乱的个股代码 tab
+  // （个股新闻从持仓卡片点击进入，已有专门入口 loadStockNews）。两组仅靠间距分隔，不再显示「市场/领域」分组标题文案。
   const mkt =
     `<span class="tab active" data-k="__us__" onclick="switchTab(this)">${_t('news_us')}</span>` +
     `<span class="tab" data-k="__cn__" onclick="switchTab(this)">${_t('news_cn')}</span>`;
   const kws = (newsTags || []).map(sec =>
     `<span class="tab" data-k="__kw__" data-kw="${esc(sec)}" onclick="switchTab(this)">${esc(secName(sec))}</span>`).join('');
   $('news-tabs').innerHTML =
-    `<span class="tab-sep">${_t('news_mkt')}</span>` + mkt +
-    `<span class="tab-sep">${_t('news_field')}</span>` + (kws || `<span class="tab-empty">${_t('no_tags')}</span>`);
+    mkt +
+    (kws || `<span class="tab-empty">${_t('no_tags')}</span>`);
   setTabCollapsed(false);   // 重建标签时回到展开态
 }
 
