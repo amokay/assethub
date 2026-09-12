@@ -2154,9 +2154,7 @@ function cashEditBtn(market) {
 }
 
 function hmName(it) {
-  if (it.kind === 'cash') return lang === 'en'
-    ? 'Cash · ' + (it.market === 'cn' ? 'CNY' : 'USD')
-    : '现金 · ' + (it.market === 'cn' ? '人民币' : '美元');
+  if (it.kind === 'cash') return 'CASH';
   if (it.kind === 'stock') return (lang === 'en' && STOCK_EN[it.code]) || it.name;
   return ((lang === 'en' ? HM_SHORT_EN : HM_SHORT_ZH)[it.code]) || it.name;
 }
@@ -2175,6 +2173,7 @@ const HM_RED_BASE = '#AC2820';
 const HM_GREEN_BASE = '#127C2B';
 const HM_LV = [0.545, 0.697, 0.848, 1.0];  // 明度系数（× base 的 L）：0 档最深 → 3 档 = 基色
 const HM_NODATA = '#4d4d59';
+const HM_CASH = '#8B1A1A';   // 现金块固定深红（与涨跌语义无关，不随配色反转）
 
 /* 'rgb(48, 209, 88)' 或 '#30d158' → [r, g, b] */
 function hmRgb(c) {
@@ -2499,6 +2498,11 @@ function hmSetCash(on) {
   hmDraw(true);
 }
 function hmPaintCell(el, it, w, h) {
+  if (it.kind === 'cash') {                 // 现金块：只显示 CASH，不显示数字与「—」
+    const f = fitHmText('CASH', '', w, h);
+    el.innerHTML = `<div class="nm" style="font-size:${f.fsN.toFixed(1)}px">CASH</div>`;
+    return;
+  }
   const pct = it.day_pct;
   const has = !(pct === null || pct === undefined || isNaN(pct));
   const chg = has ? hmPctTxt(pct) : '—';
@@ -2609,8 +2613,13 @@ function hmDraw(animate) {
       el.style.width = w + 'px';
       el.style.height = h + 'px';
     }
-    el.style.background = hmBg(it.day_pct);
-    el.dataset.lv = hmLvKey(it.day_pct);   // 供 hover 图例色块时按档位点亮
+    if (it.kind === 'cash') {              // 现金块固定深红，lv 置 'cash'（不与图例档位冲突）
+      el.style.background = HM_CASH;
+      el.dataset.lv = 'cash';
+    } else {
+      el.style.background = hmBg(it.day_pct);
+      el.dataset.lv = hmLvKey(it.day_pct);   // 供 hover 图例色块时按档位点亮
+    }
     hmPaintCell(el, it, w, h);
     if (isNew) pending.push([el, delayOf.get(key) || 0]);   // 内容先铺完，几何落定后再起播
   }
