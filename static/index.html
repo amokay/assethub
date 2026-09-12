@@ -355,12 +355,17 @@
   /* 顶部市场 tab（美元 / 人民币），选中态白色胶囊背景，无下划线 */
   .market-tabs { position: relative; display: flex; gap: 18px; margin: 2px 0 14px;
                  align-items: center; }
-  .mtab { background: none; border: none; color: var(--muted); font-size: 15px; font-weight: 600;
-          padding: 5px 16px; cursor: pointer; border-radius: 999px;
-          transition: color .15s, background-color .15s; }
-  .mtab:hover { color: var(--text); background: rgba(255,255,255,.06); }
-  .mtab.active { color: #1c1c1e; background: #fff; }   /* 选中=白色胶囊背景，不再用下划线 */
-  .mtab-slider { display: none; }
+  /* 美元/人民币 tab：外观对齐 News 选中 tag 样式（圆角矩形 + 描边；白底由滑动背景提供） */
+  .mtab { position: relative; z-index: 1; background: transparent; border: 1px solid var(--border);
+          color: var(--muted); font-size: 15px; font-weight: 600; padding: 4px 12px; cursor: pointer;
+          border-radius: 8px; transition: color .15s, border-color .15s; }
+  .mtab:hover { color: var(--text); border-color: rgba(255,255,255,.2); }
+  .mtab.active { color: #1c1c1e; border-color: transparent; }   /* 白底交给滑动背景 .mtab-slider */
+  /* 滑动背景：选中态白色圆角块在两张 tab 之间平滑滑动（News 选中样式） */
+  .mtab-slider { position: absolute; z-index: 0; box-sizing: border-box;
+                 background: #fff; border: 1px solid #fff; border-radius: 8px;
+                 pointer-events: none;
+                 transition: left .25s ease, width .25s ease, top .15s ease, height .15s ease; }
   .empty-tip { color: var(--muted); text-align: center; padding: 60px 20px; font-size: 14px;
                line-height: 2; }
   /* 卡片宽度收缩到内容宽度：标题行右端的入口按钮才能与下方数字右边缘对齐 */
@@ -529,7 +534,7 @@
     /* 2. 美元/人民币 tab：胶囊最小宽度 + 文字不折行；as-of 折到独立一行，时间/汇率各一行右对齐 */
     .market-tabs { flex-wrap: wrap; gap: 14px; }
     .market-tabs .spacer { display: none; }   /* 移动端不靠 spacer 顶 as-of，改为 as-of 独立换行 */
-    .mtab { min-width: 84px; white-space: nowrap; text-align: center; }
+    .mtab { white-space: nowrap; text-align: center; }
     #as-of { flex-basis: 100%; display: flex; flex-direction: column; align-items: flex-end;
              text-align: right; gap: 1px; line-height: 1.35; white-space: normal; }
     #as-of .asof-sep { display: none; }
@@ -2227,7 +2232,9 @@ function moveMtabSlider() {
   const sl = $('mtab-slider');
   if (!active) return;
   sl.style.left = active.offsetLeft + 'px';
+  sl.style.top = active.offsetTop + 'px';
   sl.style.width = active.offsetWidth + 'px';
+  sl.style.height = active.offsetHeight + 'px';
 }
 
 function switchMarketTab(k) {
