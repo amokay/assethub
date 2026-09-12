@@ -339,7 +339,7 @@
   #summary .summary-card:nth-child(1) .label,
   #summary .summary-card:nth-child(2) .label,
   #summary-cn .summary-card:nth-child(1) .label,
-  #summary-cn .summary-card:nth-child(2) .label { justify-content: flex-start; }
+  #summary-cn .summary-card:nth-child(2) .label { justify-content: flex-start; gap: 0; }
   /* 总资产卡含隐私眼睛：已在 lbl-act 簇内，间距交给 gap，margin 归零 */
   #summary .summary-card:nth-child(1) .label .eye,
   #summary-cn .summary-card:nth-child(1) .label .eye { margin: 0; }
@@ -355,12 +355,12 @@
   /* 顶部市场 tab（美元 / 人民币），选中态白色胶囊背景，无下划线 */
   .market-tabs { position: relative; display: flex; gap: 18px; margin: 2px 0 14px;
                  align-items: center; }
-  /* 美元/人民币 tab：外观对齐 News 选中 tag 样式（圆角矩形 + 描边；白底由滑动背景提供） */
-  .mtab { position: relative; z-index: 1; background: transparent; border: 1px solid var(--border);
+  /* 美元/人民币 tab：未选中=仅 muted 文字无边框；选中态白底圆角块由滑动背景 .mtab-slider 提供 */
+  .mtab { position: relative; z-index: 1; background: transparent; border: none;
           color: var(--muted); font-size: 15px; font-weight: 600; padding: 4px 12px; cursor: pointer;
-          border-radius: 8px; transition: color .15s, border-color .15s; }
-  .mtab:hover { color: var(--text); border-color: rgba(255,255,255,.2); }
-  .mtab.active { color: #1c1c1e; border-color: transparent; }   /* 白底交给滑动背景 .mtab-slider */
+          border-radius: 8px; transition: color .15s; }
+  .mtab:hover { color: var(--text); }
+  .mtab.active { color: #1c1c1e; }   /* 白底交给滑动背景 .mtab-slider */
   /* 滑动背景：选中态白色圆角块在两张 tab 之间平滑滑动（News 选中样式） */
   .mtab-slider { position: absolute; z-index: 0; box-sizing: border-box;
                  background: #fff; border: 1px solid #fff; border-radius: 8px;
@@ -381,12 +381,11 @@
   .summary-card .label { color: var(--muted); font-size: 13px; margin-bottom: 6px;
                          display: flex; align-items: center; justify-content: space-between;
                          gap: 12px; position: relative; }
-  /* 居中卡（总资产）的标题文字单独居中，眼睛+按钮拎到右上角绝对定位，
-     不再参与居中计算，避免「总资产」文字被按钮挤出中轴 */
-  .summary-card .label .lbl-txt { } /* 居中由 .label 的 justify-content 决定 */
-  .summary-card .label .lbl-act { position: absolute; right: 0; top: 50%;
-                                  transform: translateY(-50%); display: inline-flex;
-                                  align-items: center; gap: 8px; }
+  /* 总资产卡「查看热力图」入口：紧贴标题右侧、靠左（不再绝对定位到右缘）；
+     margin-left 5px 与「总资产」标题间距；卡1 label 的 gap 已置 0，间距纯由 margin 控制 */
+  .summary-card .label .lbl-txt { } /* 文字跟随 .label 的 justify-content 左对齐 */
+  .summary-card .label .lbl-act { margin-left: 5px; display: inline-flex;
+                                  align-items: center; }
   .summary-card .value { font-size: clamp(20px, 2.6vw, 30px); font-weight: 700; }
   .summary-card .value.sm { font-size: clamp(15px, 2.1vw, 22px); }
   .summary-card .hint { color: var(--muted); font-size: 11.5px; margin-top: 5px; }
@@ -1383,7 +1382,7 @@ function renderFrames(meta) {
   // 总资产 / 核心指标先占位，数据到达后动效填充
   $('summary').innerHTML = `
     <div class="summary-card">
-      <div class="label">${_t('total_assets')}${hmEntryBtn()}</div>
+      <div class="label">${_t('total_assets')}<span class="lbl-act">${hmEntryBtn()}</span></div>
       <div class="value" style="color:var(--muted)">--</div>
       <div class="hint" style="color:var(--muted)">--</div>
     </div>
@@ -1409,7 +1408,7 @@ function renderFrames(meta) {
       <div class="hint">&nbsp;</div>
     </div>
     <div class="summary-card">
-      <div class="label">${_t('total_assets')}${hmEntryBtn()}</div>
+      <div class="label">${_t('total_assets')}<span class="lbl-act">${hmEntryBtn()}</span></div>
       <div class="value sm" style="color:var(--muted)">--</div>
       <div class="hint">&nbsp;</div>
     </div>`;
