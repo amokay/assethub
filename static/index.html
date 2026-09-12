@@ -497,11 +497,12 @@
   /* ===================== 移动端适配 ===================== */
   @media (max-width: 620px) {
     /* 1. 头部：logo + slogan 上下排布、左对齐；右侧功能 btn 保持可点 */
-    header { padding: 14px 14px; gap: 8px 10px; flex-wrap: wrap; }
-    .brand { flex-direction: column; align-items: flex-start; gap: 2px; }
-    .slogan { margin-left: 0; transform: none; align-self: auto; }
+    header { padding: 14px 14px; gap: 8px 10px; }   /* 不换行：brand(两行) 与功能按钮同行，功能按钮垂直居中对齐 logo */
+    .brand { flex-direction: column; align-items: flex-start; gap: 2px; flex: 1 1 auto; min-width: 0; }
+    .brand h1 { margin-left: 0; }   /* logo 与 slogan 视觉左缘对齐（桌面端 h1 有 18px 左距，手机端去掉） */
+    .slogan { margin-left: 0; transform: none; align-self: auto; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
     .header .spacer { display: none; }
-    .header-actions { margin-left: auto; gap: 8px; flex: none; }
+    .header-actions { margin-left: auto; gap: 8px; flex: none; align-self: flex-start; margin-top: 3px; }   /* 功能按钮垂直中心与 logo 对齐，不再被两行 brand 挤到中间 */
     .cs-label { display: none; }   /* 省空间，保留切换轨道 */
 
     /* 2. 美元/人民币 tab：tab 不折行；右侧更新时间、汇率两行右对齐 */
@@ -567,16 +568,22 @@
   .mkt-item .spark svg { width: 100%; height: 26px; display: block; }
   .mkt-item .spark .empty { color: var(--muted); font-size: 10px; padding: 4px 0; }
 
-  /* 新闻页顶部 tag 切换栏：最多 2 行，超出纵向滚动 */
-  .tabs { display: flex; gap: 8px; padding: 2px 4px 12px; flex-wrap: wrap;
-          max-height: 72px; overflow-y: auto; scrollbar-width: thin; }
-  .tabs::-webkit-scrollbar { width: 4px; }
-  .tabs::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); border-radius: 2px; }
+  /* 新闻页 tag 切换栏：默认全部展开（手机端不截断）；选中 tag 或上滑后折叠成单行 sticky */
+  .tabs { display: flex; gap: 8px; padding: 2px 4px 12px; flex-wrap: wrap; align-items: center; }
+  .tabs.collapsed { flex-wrap: nowrap; overflow-x: auto; max-height: none; padding-bottom: 8px;
+                    position: sticky; top: 0; z-index: 40; background: var(--bg);
+                    border-bottom: 1px solid var(--border); scrollbar-width: none;
+                    -webkit-overflow-scrolling: touch; }
+  .tabs.collapsed::-webkit-scrollbar { display: none; }
+  .tabs.collapsed .tab-sep { display: none; }
   .tab { border: 1px solid var(--border); border-radius: 8px; padding: 4px 12px;
          font-size: 12px; cursor: pointer; color: var(--muted); background: transparent;
-         transition: all .15s; }
+         transition: all .15s; white-space: nowrap; flex: none; }
   .tab:hover { color: var(--text); border-color: rgba(255,255,255,.2); }
   .tab.active { background: #fff; color: #1c1c1e; border-color: #fff; }
+  .tab-sep { font-size: 11px; color: var(--muted); padding: 0 4px; align-self: center;
+             user-select: none; letter-spacing: .5px; flex: none; }
+  .tab-empty { font-size: 12px; color: var(--muted); padding: 4px 2px; }
   .news-list { padding: 2px 4px 14px; }
   .news-item { padding: 9px 0; border-bottom: 1px solid rgba(255,255,255,.05); }
   .news-item:last-child { border-bottom: none; }
@@ -903,7 +910,7 @@ const I18N = {
     please_valid: '请填写有效的数量、成本价', please_fund_valid: '请填写基金代码和当前市值',
     us_only_stock: '美元 tab 只能添加美股，如 NVDA；A股/港股请到人民币 tab 添加',
     cn_only_cn_hk: '人民币 tab 请填写 A股(sh/sz) 或港股(hk) 代码，如 sh600584 或 hk00700',
-    no_news: '暂无新闻', load_failed: '加载失败：', news_us: '美股', news_cn: 'A股',
+    no_news: '暂无新闻', load_failed: '加载失败：', news_us: '美股', news_cn: 'A股', news_mkt: '市场', news_field: '领域', no_tags: '暂无领域',
     today_ret: '今日收益', yday_ret: '昨日收益', nav_ret: '收益', no_data: '暂无数据', no_nav: '暂无净值走势',
     kw_none: '相关新闻', search_src: '东方财富检索',
     otc_fund: '场外基金 ｜ 净值滞后', cny_fund: '人民币基金 ｜ 净值滞后', total_ret: '总收益', today: '当日',
@@ -938,7 +945,7 @@ const I18N = {
     please_valid: 'Please enter valid shares & cost', please_fund_valid: 'Please enter fund code and market value',
     us_only_stock: 'USD tab: US stocks only, e.g. NVDA. Add A-shares/HK stocks in the CNY tab',
     cn_only_cn_hk: 'CNY tab: use A-share (sh/sz) or HK (hk) codes, e.g. sh600584 or hk00700',
-    no_news: 'No news', load_failed: 'Load failed: ', news_us: 'US', news_cn: 'A-Share',
+    no_news: 'No news', load_failed: 'Load failed: ', news_us: 'US', news_cn: 'A-Share', news_mkt: 'Markets', news_field: 'Sectors', no_tags: 'No sectors',
     today_ret: 'Today', yday_ret: 'Yesterday', nav_ret: 'ret', no_data: 'No data', no_nav: 'No NAV trend',
     kw_none: 'related news', search_src: 'Eastmoney search',
     otc_fund: 'OTC Fund ｜ NAV lag', cny_fund: 'CNY Fund ｜ NAV lag', total_ret: 'Total', today: 'Today',
@@ -1993,14 +2000,17 @@ function shortFundName(name) {
 
 function buildNewsTabs() {
   if (!portfolio) return;
-  const us = (portfolio.stocks || []).filter(s => !s.miss);
-  const cn = (portfolio.stocks_cn || []).filter(s => !s.miss);
-  $('news-tabs').innerHTML =
+  // 只保留「市场」(美股/A股) + 「领域」(持仓行业关键词) 两组，移除杂乱的个股代码 tab
+  // （个股新闻从持仓卡片点击进入，已有专门入口 loadStockNews）。tab-sep 做分组标题，结构清晰。
+  const mkt =
     `<span class="tab active" data-k="__us__" onclick="switchTab(this)">${_t('news_us')}</span>` +
-    `<span class="tab" data-k="__cn__" onclick="switchTab(this)">${_t('news_cn')}</span>` +
-    us.map(s => `<span class="tab" data-k="${s.code}" onclick="switchTab(this)">${s.code}</span>`).join('') +
-    cn.map(s => `<span class="tab" data-k="${s.code}" onclick="switchTab(this)">${stkName(s) || s.code}</span>`).join('') +
-    (newsTags || []).map(sec => `<span class="tab" data-k="__kw__" data-kw="${sec}" onclick="switchTab(this)">${secName(sec)}</span>`).join('');
+    `<span class="tab" data-k="__cn__" onclick="switchTab(this)">${_t('news_cn')}</span>`;
+  const kws = (newsTags || []).map(sec =>
+    `<span class="tab" data-k="__kw__" data-kw="${esc(sec)}" onclick="switchTab(this)">${esc(secName(sec))}</span>`).join('');
+  $('news-tabs').innerHTML =
+    `<span class="tab-sep">${_t('news_mkt')}</span>` + mkt +
+    `<span class="tab-sep">${_t('news_field')}</span>` + (kws || `<span class="tab-empty">${_t('no_tags')}</span>`);
+  setTabCollapsed(false);   // 重建标签时回到展开态
 }
 
 let tickerCache = [];
@@ -2102,7 +2112,7 @@ async function loadNewsByTag(el) {
 
 async function loadStockNews(code) {
   switchPage('news');
-  switchTab(document.querySelector(`.tab[data-k="${code}"]`) || document.querySelector('.tab[data-k="__us__"]'), true);
+  // 个股已无对应 tab（入口改为持仓卡片点击），直接拉个股新闻；标签栏保持展开态、不强行高亮
   $('news-list').innerHTML = '<div class="loading" data-i18n="loading">加载中…</div>';
   try {
     const d = await api('/api/stocknews?code=' + code);
@@ -2116,9 +2126,38 @@ async function loadStockNews(code) {
   } catch (e) { $('news-list').innerHTML = '<div class="loading">' + _t('load_failed') + e.message + '</div>'; }
 }
 
+/* news 标签栏展开/折叠：展开=全部展示；折叠=单行横向滚动 + sticky 悬浮在标题(header)下方 */
+let _tabCollapsed = false;
+let _newsScrollBound = false;
+function topStickyH() {
+  const ts = document.querySelector('.top-sticky');
+  return ts ? ts.offsetHeight : 56;
+}
+function setTabCollapsed(v) {
+  if (_tabCollapsed === v) return;
+  _tabCollapsed = v;
+  const tabs = $('news-tabs');
+  if (!tabs) return;
+  tabs.classList.toggle('collapsed', v);
+  tabs.style.top = v ? topStickyH() + 'px' : '';
+}
+function bindNewsScroll() {
+  if (_newsScrollBound) return; _newsScrollBound = true;
+  let ticking = false;
+  const onScroll = () => {
+    if (ticking) return; ticking = true;
+    requestAnimationFrame(() => {
+      if ($('page-news').style.display !== 'none' && window.scrollY > 40) setTabCollapsed(true);
+      ticking = false;
+    });
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+}
+
 function switchTab(el, skipFilter) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
+  setTabCollapsed(true);     // 手动选中某个 tag → 收起成一行并悬浮标题上方
   if (!skipFilter) loadNewsByTag(el);
 }
 
@@ -2128,6 +2167,14 @@ function switchPage(page) {
   $('page-news').style.display = asset ? 'none' : '';
   $('nav-asset').classList.toggle('active', asset);
   $('nav-news').classList.toggle('active', !asset);
+  // news 页不展示顶部滚动新闻（Mac 同样复用此逻辑）；asset 页恢复显示
+  const tw = document.querySelector('.ticker-wrap');
+  if (tw) tw.style.display = asset ? '' : 'none';
+  if (!asset) {
+    setTabCollapsed(false);     // 进入 news 回到展开态（标签全部展示）
+    window.scrollTo(0, 0);      // 列表从头开始，展开态更清晰
+    bindNewsScroll();           // 绑定上滑折叠监听（幂等）
+  }
 }
 
 function moveMtabSlider() {
