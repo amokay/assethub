@@ -24,7 +24,7 @@
          background: var(--bg); color: var(--text); font-size: 14px;
          -webkit-font-smoothing: antialiased; }
   header { background: rgba(12,12,14,.85); backdrop-filter: blur(18px);
-           border-bottom: 1px solid var(--border); padding: 24px 18px;
+           padding: 24px 18px 10px;   /* 去掉 border-bottom（ticker 上方那条线），收紧底部内距让滚动新闻紧贴 slogan 下方 */
            display: flex; align-items: center; gap: 12px; }
   /* 品牌区（logo + slogan）与右侧操作区各自成组，便于移动端单独排布 */
   .brand { display: flex; align-items: flex-end; gap: 12px; min-width: 0; }   /* 桌面：slogan 底边与 logo 底边对齐（移动端在 media query 改为 flex-start 左对齐） */
@@ -523,7 +523,7 @@
   /* ===================== 移动端适配 ===================== */
   @media (max-width: 620px) {
     /* 1. 头部：logo + slogan 上下排布、左对齐；右侧功能 btn 保持可点 */
-    header { padding: 14px 14px; gap: 8px 10px; flex-wrap: wrap; position: relative; }   /* 移动端 brand 占满整行、slogan 第二行整宽不折行；actions 绝对定位右上角 */
+    header { padding: 14px 14px 10px; gap: 8px 10px; flex-wrap: wrap; position: relative; }   /* 移动端 brand 占满整行、slogan 第二行整宽不折行；actions 绝对定位右上角 */
     .brand { flex-direction: column; align-items: flex-start; gap: 2px; flex: 1 1 100%; min-width: 0; }
     .brand h1 { margin-left: 0; }   /* logo 与 slogan 视觉左缘对齐（桌面端 h1 有 18px 左距，手机端去掉） */
     .brand .slogan { margin-left: 0; transform: none; align-self: stretch; max-width: none;
@@ -533,11 +533,11 @@
     .header-actions { position: absolute; top: 12px; right: 14px; gap: 8px; flex: none; }   /* 脱离流固定右上角，slogan 可整宽第二行不折行 */
     .cs-label { display: none; }   /* 省空间，保留切换轨道 */
 
-    /* 2. 美元/人民币 tab：胶囊最小宽度 + 文字不折行；as-of 折到独立一行，时间/汇率各一行右对齐 */
+    /* 2. 美元/人民币 tab：胶囊最小宽度 + 文字不折行；as-of 与 tab 同一行靠右，时间/汇率各一行 */
     .market-tabs { flex-wrap: wrap; gap: 14px; }
-    .market-tabs .spacer { display: none; }   /* 移动端不靠 spacer 顶 as-of，改为 as-of 独立换行 */
+    .market-tabs .spacer { display: none; }   /* 移动端不靠 spacer 顶 as-of，改由 as-of 的 margin-left:auto 靠右 */
     .mtab { white-space: nowrap; text-align: center; }
-    #as-of { flex-basis: 100%; display: flex; flex-direction: column; align-items: flex-end;
+    #as-of { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end;
              text-align: right; gap: 1px; line-height: 1.35; white-space: normal; }
     #as-of .asof-sep { display: none; }
 
@@ -2201,10 +2201,16 @@ function setTabCollapsed(v) {
   tabs.style.top = v ? topStickyH() + 'px' : '';
   if (v) centerActiveTab(tabs);   // 收起成单行时把当前选中 tag 水平居中，保证可见
 }
-/* 把当前 .tab.active 在折叠横滚容器里水平居中（屏幕线位置，右/左边距 0） */
+/* 把当前 .tab.active 在折叠横滚容器里水平居中（屏幕线位置，右/左边距 0）
+   ⚠️ 只有「靠后」的 tag 才滚动：若该 tag 在 scrollLeft=0 时就已完整可见（= 平铺态第一行），
+      收起后保持 scrollLeft=0，位置与平铺状态一致，避免第一行 tag 被无故平移。 */
 function centerActiveTab(tabs) {
   const el = tabs.querySelector('.tab.active');
   if (!el) return;
+  if (el.offsetLeft + el.offsetWidth <= tabs.clientWidth) {   /* 第一行：保持与平铺一致的位置 */
+    tabs.scrollTo({ left: 0, behavior: 'smooth' });
+    return;
+  }
   const target = el.offsetLeft - (tabs.clientWidth - el.offsetWidth) / 2;
   tabs.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
 }
