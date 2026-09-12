@@ -24,7 +24,7 @@
          background: var(--bg); color: var(--text); font-size: 14px;
          -webkit-font-smoothing: antialiased; }
   header { background: rgba(12,12,14,.85); backdrop-filter: blur(18px);
-           padding: 24px 18px 10px;   /* 去掉 border-bottom（ticker 上方那条线），收紧底部内距让滚动新闻紧贴 slogan 下方 */
+           padding: 24px 18px 0;   /* 去掉 border-bottom（ticker 上方那条线）；底部内距归零，使 slogan→新闻 的间距 = ticker 自带 padding 8px，与 新闻→下方横线 的 8px 一致 */
            display: flex; align-items: center; gap: 12px; }
   /* 品牌区（logo + slogan）与右侧操作区各自成组，便于移动端单独排布 */
   .brand { display: flex; align-items: flex-end; gap: 12px; min-width: 0; }   /* 桌面：slogan 底边与 logo 底边对齐（移动端在 media query 改为 flex-start 左对齐） */
@@ -65,7 +65,7 @@
   .ticker { display: inline-flex; white-space: nowrap; align-items: center;
             padding: 8px 18px; will-change: transform; }
   .ticker-item { display: inline-flex; align-items: center; gap: 8px; margin-right: 34px;
-                 color: var(--text); text-decoration: none; font-size: 13px; }
+                 color: var(--muted); text-decoration: none; font-size: 13px; }
   .ticker-item:hover .tk-title { color: var(--accent); }
   .tk-title { transition: color .15s; }
   .tk-chip { font-size: 10px; font-weight: 700; letter-spacing: .5px;
@@ -523,7 +523,7 @@
   /* ===================== 移动端适配 ===================== */
   @media (max-width: 620px) {
     /* 1. 头部：logo + slogan 上下排布、左对齐；右侧功能 btn 保持可点 */
-    header { padding: 14px 14px 10px; gap: 8px 10px; flex-wrap: wrap; position: relative; }   /* 移动端 brand 占满整行、slogan 第二行整宽不折行；actions 绝对定位右上角 */
+    header { padding: 14px 14px 0; gap: 0 10px; flex-wrap: wrap; position: relative; }   /* 移动端 brand 占满整行、slogan 第二行整宽不折行；actions 绝对定位右上角 */
     .brand { flex-direction: column; align-items: flex-start; gap: 2px; flex: 1 1 100%; min-width: 0; }
     .brand h1 { margin-left: 0; }   /* logo 与 slogan 视觉左缘对齐（桌面端 h1 有 18px 左距，手机端去掉） */
     .brand .slogan { margin-left: 0; transform: none; align-self: stretch; max-width: none;
@@ -543,6 +543,10 @@
 
     /* 3. 资产栏：2 排 × 2，平均展示，四张卡统一左对齐 */
     #summary, #summary-cn { grid-template-columns: repeat(2, 1fr); }
+    /* 移动端 2×2：取消桌面「总浮盈」的 24px 左偏移——它只用于拉开四卡一行的间距，
+       在 2×2 下会让该卡变窄(144 vs 168)且与右列「现金」左缘错开 24px */
+    #summary .summary-card:nth-child(2),
+    #summary-cn .summary-card:nth-child(2) { margin-left: 0; }
     /* 移动端 2×2：四张卡统一左对齐；用与桌面端同等特异性的选择器覆盖其居中/右对齐 */
     #summary .summary-card:nth-child(1), #summary .summary-card:nth-child(2),
     #summary .summary-card:nth-child(3), #summary .summary-card:nth-child(4),
@@ -2083,7 +2087,7 @@ let tickerLastTs = 0;         // 上一帧时间戳
 function tickerStep(ts) {
   if (!tickerPaused && tickerHalfW > 0) {
     const dt = tickerLastTs ? (ts - tickerLastTs) : 16;
-    tickerPos -= 60 * dt / 1000;              // 速度约 60px/s
+    tickerPos -= 30 * dt / 1000;              // 速度约 30px/s（用户要求降低一倍）
     if (-tickerPos >= tickerHalfW) tickerPos += tickerHalfW;   // 无缝回卷
     $('ticker').style.transform = `translateX(${tickerPos}px)`;
   }
