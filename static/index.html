@@ -295,10 +295,10 @@
   .modal-actions button.primary { background: #fff; border-color: #fff; color: #1c1c1e; }
 
   section { margin-top: 22px; }
-  .sec-head { display: flex; align-items: center; gap: 12px; padding: 0 4px 10px; }
+  .sec-head { display: flex; align-items: center; gap: 12px; padding: 0 4px 18px; }
   .sec-head h2 { font-size: 16px; font-weight: 700; color: var(--text); white-space: nowrap; }
-  .sec-nums { display: flex; gap: 12px; font-size: 12px; color: var(--muted); }
-  .sec-nums .num { font-weight: 600; white-space: nowrap; }
+  .sec-nums { display: flex; gap: 12px; font-size: 11.5px; color: var(--muted); }
+  .sec-nums .num { font-weight: 400; white-space: nowrap; }
   .sec-nums .sep { opacity: .3; }
   /* 投资偏好：左柱状图 + 右雷达图（无背景、紧凑），美元/人民币两组 */
   .pref-group { margin-bottom: 12px; }
@@ -330,13 +330,20 @@
   .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }
   /* 美元 / 人民币两个视图都是 4 张卡（总资产 / 总浮赢 / 当日盈亏 / 现金），排成一行 */
   #summary, #summary-cn { grid-template-columns: repeat(4, 1fr); gap: 18px; }
-  /* 第 2 张「总浮赢」居中对齐，与左侧「总资产」形成左-中平衡；
+  /* 第 1、2 张「总资产 / 总浮赢」居中对齐，两者水平一致；
      后两张（当日盈亏 / 现金）保持右对齐，整体向右展开增加呼吸空间。
      ⚠️ .label 是 flex，text-align 管不到它，必须用 justify-content 才能让标题也跟随。 */
+  #summary .summary-card:nth-child(1),
   #summary .summary-card:nth-child(2),
+  #summary-cn .summary-card:nth-child(1),
   #summary-cn .summary-card:nth-child(2) { text-align: center; }
+  #summary .summary-card:nth-child(1) .label,
   #summary .summary-card:nth-child(2) .label,
+  #summary-cn .summary-card:nth-child(1) .label,
   #summary-cn .summary-card:nth-child(2) .label { justify-content: center; }
+  /* 总资产卡含隐私眼睛：居中时清掉原来的 auto 负边距，改用常规左间隙 */
+  #summary .summary-card:nth-child(1) .label .eye,
+  #summary-cn .summary-card:nth-child(1) .label .eye { margin: 0 0 0 6px; }
   #summary .summary-card:nth-child(n+3),
   #summary-cn .summary-card:nth-child(n+3) { text-align: right; }
   #summary .summary-card:nth-child(n+3) .label,
@@ -384,8 +391,8 @@
   .hm-entry svg { width: 12px; height: 12px; flex: none; }
 
   /* ---------- 资产热力图（全屏浮层） ---------- */
-  .hm-mask { position: fixed; inset: 0; z-index: 90; background: rgba(8,8,10,.985);
-             display: none; flex-direction: column; padding: 16px 18px 18px; }
+  .hm-mask { position: fixed; inset: 0; z-index: 90; background: var(--bg);
+             display: none; flex-direction: column; padding: 16px 18px 28px; }
   .hm-mask.open { display: flex; animation: hmFade .22s ease; }
   @keyframes hmFade { from { opacity: 0 } to { opacity: 1 } }
   /* gap 与页面 header 的按钮间距一致 */
@@ -442,7 +449,7 @@
                        cursor: pointer; transition: filter .16s ease; }
   .hm-legend .ramp i:hover { filter: brightness(1.4); }
   /* 画布底色 = 参考图 #171419，方块之间留 1.5px 暗色缝 */
-  .hm-stage { position: relative; flex: 1; min-height: 0; background: #171419; }
+  .hm-stage { position: relative; flex: 1; min-height: 0; background: var(--bg); }
   .hm-cell { position: absolute; border-radius: 0; overflow: hidden; cursor: pointer;
              display: flex; flex-direction: column; align-items: center; justify-content: center;
              gap: 0; text-align: center; padding: 1px 2px; color: #fff;
@@ -494,7 +501,7 @@
   .hm-pop .row { display: flex; justify-content: space-between; gap: 14px; color: var(--muted); }
   .hm-pop .row i { font-style: normal; color: var(--text); font-weight: 600; }
   @media (max-width: 620px) {
-    .hm-mask { padding: 12px 10px 14px; }
+    .hm-mask { padding: 12px 10px 22px; }
     .hm-legend { display: none; }
   }
 
@@ -519,13 +526,22 @@
 
     /* 3. 资产栏：2 排 × 2，平均展示，四张卡统一左对齐 */
     #summary, #summary-cn { grid-template-columns: repeat(2, 1fr); }
-    #summary .summary-card:nth-child(n+2), #summary-cn .summary-card:nth-child(n+2) { text-align: left; }
-    #summary .summary-card:nth-child(n+2) .label,
-    #summary-cn .summary-card:nth-child(n+2) .label { justify-content: flex-start; }
+    /* 移动端 2×2：四张卡统一左对齐；用与桌面端同等特异性的选择器覆盖其居中/右对齐 */
+    #summary .summary-card:nth-child(1), #summary .summary-card:nth-child(2),
+    #summary .summary-card:nth-child(3), #summary .summary-card:nth-child(4),
+    #summary-cn .summary-card:nth-child(1), #summary-cn .summary-card:nth-child(2),
+    #summary-cn .summary-card:nth-child(3), #summary-cn .summary-card:nth-child(4) { text-align: left; }
+    #summary .summary-card:nth-child(1) .label, #summary .summary-card:nth-child(2) .label,
+    #summary .summary-card:nth-child(3) .label, #summary .summary-card:nth-child(4) .label,
+    #summary-cn .summary-card:nth-child(1) .label, #summary-cn .summary-card:nth-child(2) .label,
+    #summary-cn .summary-card:nth-child(3) .label, #summary-cn .summary-card:nth-child(4) .label { justify-content: flex-start; }
+    /* 移动端总资产卡仍保持「标题左 + 查看热力图右」原有布局（恢复 auto 负边距） */
+    #summary .summary-card:nth-child(1) .label .eye,
+    #summary-cn .summary-card:nth-child(1) .label .eye { margin: 0 auto 0 -6px; }
 
     /* 6. 持仓标题：市值/当日盈亏 与标题上下排布、左对齐；
           添加 btn 右对齐、距右缘间距与左缘一致（4px） */
-    .sec-head { flex-wrap: wrap; position: relative; padding: 0 4px 6px; gap: 2px; }
+    .sec-head { flex-wrap: wrap; position: relative; padding: 0 4px 12px; gap: 2px; }
     .sec-head h2 { flex: 1 1 100%; margin-bottom: 0; }
     .sec-head .sec-nums { flex: 1 1 100%; margin-top: 0; }
     .sec-head .spacer { display: none; }
@@ -577,8 +593,10 @@
   .mkt-item .spark .empty { color: var(--muted); font-size: 10px; padding: 4px 0; }
 
   /* 新闻页 tag 切换栏：默认全部展开（手机端不截断）；选中 tag 或上滑后折叠成单行 sticky */
-  .tabs { display: flex; gap: 8px; padding: 2px 4px 12px; flex-wrap: wrap; align-items: center; }
+  .tabs { display: flex; gap: 8px; padding: 8px 4px 12px; flex-wrap: wrap; align-items: center;
+            transition: padding .25s ease, background-color .25s ease; }
   .tabs.collapsed { flex-wrap: nowrap; overflow-x: auto; max-height: none; padding: 8px 4px 8px;
+                    box-shadow: 0 6px 14px rgba(0,0,0,.35);
                     position: sticky; top: 0; z-index: 40; background: var(--bg);
                     scrollbar-width: none;
                     -webkit-overflow-scrolling: touch; }
