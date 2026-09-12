@@ -330,17 +330,17 @@
   .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }
   /* 美元 / 人民币两个视图都是 4 张卡（总资产 / 总浮赢 / 当日盈亏 / 现金），排成一行 */
   #summary, #summary-cn { grid-template-columns: repeat(4, 1fr); gap: 18px; }
-  /* 第 1、2 张「总资产 / 总浮赢」居中对齐，两者水平一致；
+  /* 第 1、2 张「总资产 / 总浮赢」居左对齐，两者水平一致；
      后两张（当日盈亏 / 现金）保持右对齐，整体向右展开增加呼吸空间。
      ⚠️ .label 是 flex，text-align 管不到它，必须用 justify-content 才能让标题也跟随。 */
   #summary .summary-card:nth-child(1),
   #summary .summary-card:nth-child(2),
   #summary-cn .summary-card:nth-child(1),
-  #summary-cn .summary-card:nth-child(2) { text-align: center; }
+  #summary-cn .summary-card:nth-child(2) { text-align: left; }
   #summary .summary-card:nth-child(1) .label,
   #summary .summary-card:nth-child(2) .label,
   #summary-cn .summary-card:nth-child(1) .label,
-  #summary-cn .summary-card:nth-child(2) .label { justify-content: center; }
+  #summary-cn .summary-card:nth-child(2) .label { justify-content: flex-start; }
   /* 总资产卡含隐私眼睛：已在 lbl-act 簇内，间距交给 gap，margin 归零 */
   #summary .summary-card:nth-child(1) .label .eye,
   #summary-cn .summary-card:nth-child(1) .label .eye { margin: 0; }
