@@ -622,16 +622,16 @@
   .mkt-item .spark svg { width: 100%; height: 26px; display: block; }
   .mkt-item .spark .empty { color: var(--muted); font-size: 10px; padding: 4px 0; }
 
-  /* 新闻页 tag 切换栏：默认全部展开（手机端不截断）；选中 tag 或上滑后折叠成单行 sticky */
-  .tabs { display: flex; gap: 8px; padding: 8px 4px 12px; flex-wrap: wrap; align-items: center;
-            transition: padding .25s ease, background-color .25s ease; }
-  .tabs.collapsed { flex-wrap: nowrap; overflow-x: auto; max-height: none;
-                    padding: 8px 0 8px 4px; margin: 0 -18px;   /* 出血到 main 的 18px 边距外：右/左贴屏幕边，tag 在屏幕线位置消失而非留白 */
-                    box-shadow: 0 6px 14px rgba(0,0,0,.35);
-                    position: sticky; top: 0; z-index: 40; background: var(--bg);
-                    scrollbar-width: none;
-                    -webkit-overflow-scrolling: touch; }
-  .tabs.collapsed::-webkit-scrollbar { display: none; }
+  /* 新闻页 tag 切换栏（重构）：整条置于 slogan 下方、随 header 一同 sticky；
+     取消平铺换行 → 单行从左到右排列、可横滑；左右内距由 JS 对齐到 slogan 左缘；
+     底部分割线 1px var(--border) 与 asset 页头部（.ticker-wrap）同源 */
+  .news-tabs-bar { display: none; border-bottom: 1px solid var(--border); }
+  .news-tabs-bar.show { display: block; }
+  .tabs { display: flex; gap: 8px; align-items: center; flex-wrap: nowrap;
+          overflow-x: auto; overflow-y: hidden;
+          padding: 8px 18px;
+          scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .tabs::-webkit-scrollbar { display: none; }
   .tab { border: 1px solid var(--border); border-radius: 8px; padding: 4px 12px;
          font-size: 12px; cursor: pointer; color: var(--muted); background: transparent;
          transition: all .15s; white-space: nowrap; flex: none; }
@@ -687,6 +687,8 @@
   </div>
 </header>
 <div class="ticker-wrap"><div class="ticker" id="ticker"><span class="meta" style="padding:0 16px" data-i18n="loading_news">新闻加载中…</span></div></div>
+<!-- News 页 tag 栏：与 asset 页头部同一套底部分割线；一行横滑、首个 tag 与 slogan 左缘对齐 -->
+<div class="news-tabs-bar" id="news-tabs-bar"><div class="tabs" id="news-tabs"></div></div>
 </div>
 <main>
   <div id="page-asset">
@@ -773,7 +775,6 @@
   </div>
 
   <div id="page-news" style="display:none">
-    <div class="tabs" id="news-tabs"></div>
     <div class="news-list" id="news-list"><div class="loading" data-i18n="loading">加载中…</div></div>
   </div>
 </main>
@@ -2073,7 +2074,7 @@ async function buildNewsTabs() {
   $('news-tabs').innerHTML =
     mkt +
     (kws || `<span class="tab-empty">${_t('no_tags')}</span>`);
-  setTabCollapsed(false);   // 重建标签时回到展开态
+  alignTabsToSlogan();      // 首个 tag 与 slogan 左缘对齐
 }
 
 let tickerCache = [];
@@ -2189,56 +2190,37 @@ async function loadStockNews(code) {
   } catch (e) { $('news-list').innerHTML = '<div class="loading">' + _t('load_failed') + e.message + '</div>'; }
 }
 
-/* news 标签栏展开/折叠：展开=全部展示；折叠=单行横向滚动 + sticky 悬浮在标题(header)下方 */
-let _tabCollapsed = false;
-let _newsScrollBound = false;
-function topStickyH() {
-  const ts = document.querySelector('.top-sticky');
-  return ts ? ts.offsetHeight : 56;
+/* news 标签栏：固定为单行横滑（不再平铺、不再随滚动折叠），整条随 header 一起 sticky 在 slogan 下方 */
+/* 首个 tag 左缘与 slogan 左缘对齐：
+   tag 栏需要通栏（底部分割线要和 asset 页头部一致地撑满整行），
+   而 slogan 在桌面位于 logo 右侧、移动端独占一行且左右内距与 main 不同，
+   故用实时测量而非固定值；语言/字号/窗口尺寸变化后重算。 */
+function alignTabsToSlogan() {
+  const tabs = $('news-tabs'), bar = $('news-tabs-bar'), sl = document.querySelector('.slogan');
+  if (!tabs || !bar || !sl) return;
+  const left = sl.getBoundingClientRect().left - bar.getBoundingClientRect().left;
+  const pad = Math.max(0, Math.round(left * 10) / 10);
+  tabs.style.paddingLeft = pad + 'px';
+  tabs.style.paddingRight = pad + 'px';
 }
-function setTabCollapsed(v) {
-  if (_tabCollapsed === v) return;
-  _tabCollapsed = v;
-  const tabs = $('news-tabs');
-  if (!tabs) return;
-  tabs.classList.toggle('collapsed', v);
-  tabs.style.top = v ? topStickyH() + 'px' : '';
-  if (v) centerActiveTab(tabs);   // 收起成单行时把当前选中 tag 水平居中，保证可见
-}
-/* 把当前 .tab.active 在折叠横滚容器里水平居中（屏幕线位置，右/左边距 0）
-   ⚠️ 只有「靠后」的 tag 才滚动：若该 tag 在 scrollLeft=0 时就已完整可见（= 平铺态第一行），
-      收起后保持 scrollLeft=0，位置与平铺状态一致，避免第一行 tag 被无故平移。 */
+window.addEventListener('resize', alignTabsToSlogan);
+window.addEventListener('load', alignTabsToSlogan);
+/* 选中某个 tag 后保证它在可视区内：
+   ① 已完整可见 → 原地不动（保持从左到右的原始位置，避免无故平移）
+   ② 右侧被裁掉 → 滚到容器水平中心 */
 function centerActiveTab(tabs) {
   const el = tabs.querySelector('.tab.active');
   if (!el) return;
-  if (el.offsetLeft + el.offsetWidth <= tabs.clientWidth) {   /* 第一行：保持与平铺一致的位置 */
-    tabs.scrollTo({ left: 0, behavior: 'smooth' });
-    return;
-  }
-  const target = el.offsetLeft - (tabs.clientWidth - el.offsetWidth) / 2;
-  tabs.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
-}
-function bindNewsScroll() {
-  if (_newsScrollBound) return; _newsScrollBound = true;
-  let ticking = false;
-  const onScroll = () => {
-    if (ticking) return; ticking = true;
-    requestAnimationFrame(() => {
-      if ($('page-news').style.display !== 'none') {
-        if (window.scrollY > 40) setTabCollapsed(true);
-        else setTabCollapsed(false);   // 回滚到顶部 → 平铺展开，与初始状态一致
-      }
-      ticking = false;
-    });
-  };
-  window.addEventListener('scroll', onScroll, { passive: true });
+  const tr = tabs.getBoundingClientRect(), er = el.getBoundingClientRect();
+  if (er.left >= tr.left - 0.5 && er.right <= tr.right + 0.5) return;
+  const delta = (er.left + er.right) / 2 - (tr.left + tr.right) / 2;
+  tabs.scrollTo({ left: Math.max(0, tabs.scrollLeft + delta), behavior: 'smooth' });
 }
 
 function switchTab(el, skipFilter) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
-  setTabCollapsed(true);     // 手动选中某个 tag → 收起成一行并悬浮标题上方
-  centerActiveTab($('news-tabs'));   // 选中靠后 tag 也居中，保证在屏幕线位置可见
+  centerActiveTab($('news-tabs'));   // 选中靠后的 tag 自动滚入可视区并居中
   if (!skipFilter) loadNewsByTag(el);
 }
 
@@ -2251,10 +2233,12 @@ function switchPage(page) {
   // news 页不展示顶部滚动新闻（Mac 同样复用此逻辑）；asset 页恢复显示
   const tw = document.querySelector('.ticker-wrap');
   if (tw) tw.style.display = asset ? '' : 'none';
+  // News 页改为在 slogan 下方展示一行横滑 tag 栏（底部分割线与 asset 页头部同源）
+  const tb = $('news-tabs-bar');
+  if (tb) tb.classList.toggle('show', !asset);
   if (!asset) {
-    setTabCollapsed(false);     // 进入 news 回到展开态（标签全部展示）
-    window.scrollTo(0, 0);      // 列表从头开始，展开态更清晰
-    bindNewsScroll();           // 绑定上滑折叠监听（幂等）
+    window.scrollTo(0, 0);      // 列表从头开始
+    alignTabsToSlogan();        // 首个 tag 与 slogan 左缘对齐
   }
 }
 
