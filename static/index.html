@@ -511,9 +511,9 @@
     header { padding: 14px 14px; gap: 8px 10px; }   /* 不换行：brand(两行) 与功能按钮同行，功能按钮垂直居中对齐 logo */
     .brand { flex-direction: column; align-items: flex-start; gap: 2px; flex: 1 1 auto; min-width: 0; }
     .brand h1 { margin-left: 0; }   /* logo 与 slogan 视觉左缘对齐（桌面端 h1 有 18px 左距，手机端去掉） */
-    .slogan { margin-left: 0; transform: none; align-self: stretch; max-width: none;
-               overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-               display: block; min-width: 0; }
+    .brand .slogan { margin-left: 0; transform: none; align-self: stretch; max-width: none;
+               overflow: visible; text-overflow: clip; white-space: normal;
+               overflow-wrap: break-word; display: block; min-width: 0; }
     .header .spacer { display: none; }
     .header-actions { margin-left: auto; gap: 8px; flex: none; align-self: flex-start; margin-top: 3px; }   /* 功能按钮垂直中心与 logo 对齐，不再被两行 brand 挤到中间 */
     .cs-label { display: none; }   /* 省空间，保留切换轨道 */
