@@ -27,7 +27,7 @@
            border-bottom: 1px solid var(--border); padding: 24px 18px;
            display: flex; align-items: center; gap: 12px; }
   /* 品牌区（logo + slogan）与右侧操作区各自成组，便于移动端单独排布 */
-  .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .brand { display: flex; align-items: flex-end; gap: 12px; min-width: 0; }   /* 桌面：slogan 底边与 logo 底边对齐（移动端在 media query 改为 flex-start 左对齐） */
   .header-actions { display: flex; align-items: center; gap: 12px; flex: none; }
   .top-sticky { position: sticky; top: 0; z-index: 50; background: rgba(12,12,14,.92);
                 backdrop-filter: blur(18px); }
