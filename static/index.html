@@ -336,6 +336,9 @@
   #summary .summary-card:nth-child(2),
   #summary-cn .summary-card:nth-child(1),
   #summary-cn .summary-card:nth-child(2) { text-align: left; }
+  /* 总资产(卡1)与总浮赢(卡2)加大间距，其余保持grid gap 18px */
+  #summary .summary-card:nth-child(2),
+  #summary-cn .summary-card:nth-child(2) { margin-left: 24px; }
   #summary .summary-card:nth-child(1) .label,
   #summary .summary-card:nth-child(2) .label,
   #summary-cn .summary-card:nth-child(1) .label,
@@ -379,28 +382,28 @@
   .summary-card .value { white-space: nowrap; margin-top: auto; }
   .summary-card .label, .summary-card .hint { white-space: nowrap; }
   .summary-card .label { color: var(--muted); font-size: 13px; margin-bottom: 6px;
-                         display: flex; align-items: center; justify-content: space-between;
+                         display: flex; align-items: center; justify-content: flex-start;
                          gap: 12px; position: relative; }
   /* 总资产卡「查看热力图」入口：紧贴标题右侧、靠左（不再绝对定位到右缘）；
      margin-left 5px 与「总资产」标题间距；卡1 label 的 gap 已置 0，间距纯由 margin 控制 */
   .summary-card .label .lbl-txt { } /* 文字跟随 .label 的 justify-content 左对齐 */
   .summary-card .label .lbl-act { margin-left: 5px; display: inline-flex;
-                                  align-items: center; }
+                                  align-items: center; height: 0; overflow: visible; }
   .summary-card .value { font-size: clamp(20px, 2.6vw, 30px); font-weight: 700; }
   .summary-card .value.sm { font-size: clamp(15px, 2.1vw, 22px); }
   .summary-card .hint { color: var(--muted); font-size: 11.5px; margin-top: 5px; }
   /* 总资产数字后的隐私眼睛：与数字垂直居中、置于数字右侧（不再放标题区） */
-  .summary-card .value .eye { vertical-align: middle; margin-left: 5px; display: inline-flex;
-                             align-items: center; }
+  .summary-card .value .eye { margin-left: 5px; display: inline-flex;
+                             align-items: center; position: relative; top: 2px; } /* 绝对定位感：用相对定位微调垂直；不改 display 避免脱离流但减少对行高的贡献 */
   .summary-card .value .eye svg { width: 16px; height: 16px; }
   /* 总资产标题右侧「查看热力图」入口：规格与顶部新闻标签(.tab)完全一致 */
-  .hm-entry { border: 1px solid var(--border); border-radius: 8px; padding: 4px 12px;
-              font-size: 12px; color: var(--muted); background: transparent;
+  .hm-entry { border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px;
+              font-size: 11px; color: var(--muted); background: transparent;
               transition: all .15s; cursor: pointer; display: inline-flex;
               align-items: center; gap: 4px; white-space: nowrap;
               font-family: inherit; line-height: 1.5; }
   .hm-entry:hover { color: var(--text); border-color: rgba(255,255,255,.2); }
-  .hm-entry svg { width: 12px; height: 12px; flex: none; }
+  .hm-entry svg { width: 11px; height: 11px; flex: none; }
 
   /* ---------- 资产热力图（全屏浮层） ---------- */
   .hm-mask { position: fixed; inset: 0; z-index: 90; background: var(--bg);
@@ -589,7 +592,7 @@
      margin-right:auto 让铅笔紧跟标题，而不是被 space-between 顶到卡片最右 */
   .summary-card .label .cash-edit { background: none; border: none; cursor: pointer; padding: 0;
          margin: 0 auto 0 -6px; display: inline-flex; align-items: center;
-         color: var(--muted); vertical-align: middle; position: relative; top: -1px; }
+         color: var(--muted); vertical-align: middle; position: relative; }
   .summary-card .label .cash-edit svg { width: 14px; height: 14px; }
   .summary-card .label .cash-edit:hover { color: var(--text); }
   /* logo 旁的 slogan：继承 .brand 的 align-items（桌面 center / 移动端由 media query 单独控制） */
@@ -2346,7 +2349,7 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
 /* 总资产标题右侧入口按钮 */
 function hmEntryBtn() {
   return `<button class="hm-entry" onclick="openHeatmap()" title="${_t('hm_title')}">`
-    + `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`
+    + `<svg viewBox="0 0 24 24" fill="currentColor" stroke="none">`
     + `<rect x="3" y="3" width="8" height="8" rx="1.2"/><rect x="13.5" y="3" width="7.5" height="4.5" rx="1.2"/>`
     + `<rect x="13.5" y="10" width="7.5" height="11" rx="1.2"/><rect x="3" y="13.5" width="8" height="7.5" rx="1.2"/></svg>`
     + `${_t('hm_entry')}</button>`;
