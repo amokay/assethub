@@ -618,7 +618,8 @@
   /* 新闻页 tag 切换栏：默认全部展开（手机端不截断）；选中 tag 或上滑后折叠成单行 sticky */
   .tabs { display: flex; gap: 8px; padding: 8px 4px 12px; flex-wrap: wrap; align-items: center;
             transition: padding .25s ease, background-color .25s ease; }
-  .tabs.collapsed { flex-wrap: nowrap; overflow-x: auto; max-height: none; padding: 8px 4px 8px;
+  .tabs.collapsed { flex-wrap: nowrap; overflow-x: auto; max-height: none;
+                    padding: 8px 0 8px 4px; margin: 0 -18px;   /* 出血到 main 的 18px 边距外：右/左贴屏幕边，tag 在屏幕线位置消失而非留白 */
                     box-shadow: 0 6px 14px rgba(0,0,0,.35);
                     position: sticky; top: 0; z-index: 40; background: var(--bg);
                     scrollbar-width: none;
@@ -2044,14 +2045,23 @@ function shortFundName(name) {
   return name.replace(/基金|A2|A-Acc|-?Acc|\(acc\)|USD|Hdg|[A-Z]/gi, '').replace(/[-\s]+/g, '').slice(0, 8) || name;
 }
 
-function buildNewsTabs() {
+async function buildNewsTabs() {
   if (!portfolio) return;
   // 只保留「市场」(美股/A股) + 「领域」(持仓行业关键词) 两组 tag，移除杂乱的个股代码 tab
   // （个股新闻从持仓卡片点击进入，已有专门入口 loadStockNews）。两组仅靠间距分隔，不再显示「市场/领域」分组标题文案。
+  // 领域 tag 仅展示「在新闻流里确有匹配条目」的行业（k in 标题/related_kw/related 与后端 /api/news?kw= 一致），
+  // 没有相关新闻的行业直接不渲染，避免空 tab。
+  let items = [];
+  try { items = await getNews(); } catch (e) { items = []; }
+  const hasKw = (sec) => items.some(n =>
+     (n.title && n.title.indexOf(sec) !== -1) ||
+     (n.related_kw && n.related_kw.indexOf(sec) !== -1) ||
+     (n.related && n.related.indexOf(sec) !== -1));
+  const secs = (newsTags || []).filter(hasKw);
   const mkt =
     `<span class="tab active" data-k="__us__" onclick="switchTab(this)">${_t('news_us')}</span>` +
     `<span class="tab" data-k="__cn__" onclick="switchTab(this)">${_t('news_cn')}</span>`;
-  const kws = (newsTags || []).map(sec =>
+  const kws = secs.map(sec =>
     `<span class="tab" data-k="__kw__" data-kw="${esc(sec)}" onclick="switchTab(this)">${esc(secName(sec))}</span>`).join('');
   $('news-tabs').innerHTML =
     mkt +
@@ -2186,6 +2196,14 @@ function setTabCollapsed(v) {
   if (!tabs) return;
   tabs.classList.toggle('collapsed', v);
   tabs.style.top = v ? topStickyH() + 'px' : '';
+  if (v) centerActiveTab(tabs);   // 收起成单行时把当前选中 tag 水平居中，保证可见
+}
+/* 把当前 .tab.active 在折叠横滚容器里水平居中（屏幕线位置，右/左边距 0） */
+function centerActiveTab(tabs) {
+  const el = tabs.querySelector('.tab.active');
+  if (!el) return;
+  const target = el.offsetLeft - (tabs.clientWidth - el.offsetWidth) / 2;
+  tabs.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
 }
 function bindNewsScroll() {
   if (_newsScrollBound) return; _newsScrollBound = true;
@@ -2207,6 +2225,7 @@ function switchTab(el, skipFilter) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
   setTabCollapsed(true);     // 手动选中某个 tag → 收起成一行并悬浮标题上方
+  centerActiveTab($('news-tabs'));   // 选中靠后 tag 也居中，保证在屏幕线位置可见
   if (!skipFilter) loadNewsByTag(el);
 }
 
