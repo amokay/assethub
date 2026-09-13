@@ -2,7 +2,7 @@
 <html lang="zh">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>AssetHub</title>
 <link rel="icon" type="image/png" href="/static/app-icon-512.png">
 <link rel="apple-touch-icon" href="/static/app-icon-180.png">
@@ -22,7 +22,7 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
          background: var(--bg); color: var(--text); font-size: 14px;
-         -webkit-font-smoothing: antialiased; }
+         -webkit-font-smoothing: antialiased; touch-action: manipulation; }
   header { background: rgba(12,12,14,.85); backdrop-filter: blur(18px);
            padding: 24px 36px 0 18px;   /* 左右内距：左 18(=logo 左距的组成) + h1 18 → logo 左缘 36；右 36 使刷新 btn 右缘与 logo 左缘等高对称 */
            display: flex; align-items: center; gap: 12px; }
@@ -651,6 +651,15 @@
   .tag-related { font-size: 10px; background: rgba(255,69,58,.16); color: var(--red);
                  border-radius: 4px; padding: 1px 5px; margin-left: 6px; }
   .loading { color: var(--muted); padding: 28px; text-align: center; }
+  /* 鱼骨图 loading：鱼骨形骨架 + 沿脊柱游动的光点（滚动新闻 / 核心指数 加载态共用） */
+  .fb-loading { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); white-space: nowrap; }
+  .fb-loading .fb-text { font-size: 12px; }
+  .fb-svg { width: 84px; height: 18px; overflow: visible; flex: none; }
+  .fb-svg .fb-spine, .fb-svg .fb-rib, .fb-svg .fb-head { stroke: var(--muted); stroke-width: 1.4; fill: none; stroke-linecap: round; }
+  .fb-svg .fb-dot { fill: var(--accent); animation: fbSwim 1.5s ease-in-out infinite alternate; }
+  .fb-svg .fb-group { animation: fbPulse 1.5s ease-in-out infinite; transform-origin: center; }
+  @keyframes fbPulse { 0%,100% { opacity: .5 } 50% { opacity: 1 } }
+  @keyframes fbSwim { from { transform: translateX(0); } to { transform: translateX(66px); } }
 
   .toast { position: fixed; bottom: 24px; right: 24px; background: rgba(60,60,67,.92); color: #fff;
            border-radius: 10px; padding: 10px 18px; font-size: 13px; opacity: 0;
@@ -690,7 +699,7 @@
     </button>
   </div>
 </header>
-<div class="ticker-wrap"><div class="ticker" id="ticker"><span class="meta" style="padding:0 16px" data-i18n="loading_news">新闻加载中…</span></div></div>
+<div class="ticker-wrap"><div class="ticker" id="ticker"><span class="fb-loading" style="padding:0 16px"><svg class="fb-svg" viewBox="0 0 84 18" aria-hidden="true"><g class="fb-group"><line class="fb-spine" x1="8" y1="9" x2="74" y2="9"/><line class="fb-rib" x1="20" y1="9" x2="15" y2="3.5"/><line class="fb-rib" x1="20" y1="9" x2="15" y2="14.5"/><line class="fb-rib" x1="32" y1="9" x2="27" y2="3.5"/><line class="fb-rib" x1="32" y1="9" x2="27" y2="14.5"/><line class="fb-rib" x1="44" y1="9" x2="39" y2="3.5"/><line class="fb-rib" x1="44" y1="9" x2="39" y2="14.5"/><line class="fb-rib" x1="56" y1="9" x2="51" y2="3.5"/><line class="fb-rib" x1="56" y1="9" x2="51" y2="14.5"/><line class="fb-rib" x1="66" y1="9" x2="61" y2="3.5"/><line class="fb-rib" x1="66" y1="9" x2="61" y2="14.5"/><circle class="fb-head" cx="78" cy="9" r="3.2"/><circle class="fb-dot" cx="8" cy="9" r="2.2"/></g></svg><span class="fb-text" data-i18n="loading_news">新闻加载中…</span></span></div></div>
 <!-- News 页 tag 栏：与 asset 页头部同一套底部分割线；一行横滑、首个 tag 与 slogan 左缘对齐 -->
 <div class="news-tabs-bar" id="news-tabs-bar"><div class="tabs" id="news-tabs"></div></div>
 </div>
@@ -955,7 +964,7 @@ const I18N = {
     total_assets: '总资产', total_pnl: '总浮盈', day_pnl: '股票当日盈亏',
     total_pnl_cn: '总盈亏', day_pnl_cn: '当日盈亏', rm_total: '人民币总市值', rm_day: '人民币当日盈亏',
     stocks: '持仓股票', funds: '持仓基金', preference: '投资偏好',
-    add: '添加+', loading: '加载中…', no_holdings: '暂无持仓', no_quote: '行情缺失',
+    add: '添加+', loading: '加载中…', loading_markets: '核心指数加载中…', no_holdings: '暂无持仓', no_quote: '行情缺失',
     pre: '盘前', regular: '盘中', after: '盘后', night: '夜盘', closed: '已收盘',
     hold_shares: '持仓数量', cost_price: '成本价', mkt_value: '当前市值', pnl: '盈亏', total_mv: '总市值',
     edit: '修改', save: '保存', del: '删除', cancel: '取消', add_confirm: '添加',
@@ -990,7 +999,7 @@ const I18N = {
     total_assets: 'Total Assets', total_pnl: 'Total P&L', day_pnl: 'Stock Day P&L',
     total_pnl_cn: 'Total P&L', day_pnl_cn: 'Day P&L', rm_total: 'CNY Total', rm_day: 'CNY Day P&L',
     stocks: 'Stocks', funds: 'Funds', preference: 'Allocation',
-    add: 'Add+', loading: 'Loading…', no_holdings: 'No holdings', no_quote: 'No quote',
+    add: 'Add+', loading: 'Loading…', loading_markets: 'Loading indices…', no_holdings: 'No holdings', no_quote: 'No quote',
     pre: 'Pre', regular: 'Open', after: 'After', night: 'Night', closed: 'Closed',
     hold_shares: 'Shares', cost_price: 'Cost', mkt_value: 'Market Value', pnl: 'P&L', total_mv: 'Total MV',
     edit: 'Edit', save: 'Save', del: 'Delete', cancel: 'Cancel', add_confirm: 'Add',
@@ -1257,8 +1266,11 @@ function sparkSvg(points, w, h, dir, progress, sw) {
   </svg>`;
 }
 
+const FISHBONE_SVG = `<svg class="fb-svg" viewBox="0 0 84 18" aria-hidden="true"><g class="fb-group"><line class="fb-spine" x1="8" y1="9" x2="74" y2="9"/><line class="fb-rib" x1="20" y1="9" x2="15" y2="3.5"/><line class="fb-rib" x1="20" y1="9" x2="15" y2="14.5"/><line class="fb-rib" x1="32" y1="9" x2="27" y2="3.5"/><line class="fb-rib" x1="32" y1="9" x2="27" y2="14.5"/><line class="fb-rib" x1="44" y1="9" x2="39" y2="3.5"/><line class="fb-rib" x1="44" y1="9" x2="39" y2="14.5"/><line class="fb-rib" x1="56" y1="9" x2="51" y2="3.5"/><line class="fb-rib" x1="56" y1="9" x2="51" y2="14.5"/><line class="fb-rib" x1="66" y1="9" x2="61" y2="3.5"/><line class="fb-rib" x1="66" y1="9" x2="61" y2="14.5"/><circle class="fb-head" cx="78" cy="9" r="3.2"/><circle class="fb-dot" cx="8" cy="9" r="2.2"/></g></svg>`;
+function fishboneHTML(text) { return `<span class="fb-loading">${FISHBONE_SVG}<span class="fb-text">${text}</span></span>`; }
+
 function marketsPlaceholder() {
-  const ph = () => `<div class="mkt-item" style="min-height:64px"><div class="spark" style="height:26px"></div></div>`;
+  const ph = () => `<div class="mkt-ph" style="grid-column:1/-1;display:flex;justify-content:center;align-items:center;gap:10px;min-height:64px;color:var(--muted)">${fishboneHTML(_t('loading_markets'))}</div>`;
   $('markets').innerHTML = ph();
   $('markets-cn').innerHTML = ph();
 }
