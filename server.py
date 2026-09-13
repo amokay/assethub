@@ -26,6 +26,8 @@ def _load_config():
         pass
     return cfg
 
+CONFIG = _load_config()  # 模块级加载一次，供密码等本地配置回退使用
+
 def _resolve_template():
     """持仓模板：读取应用同目录 data/portfolio.json；
     缺失时自动从 sample/portfolio.json 复制示例（首次启动自动初始化）"""
@@ -2085,7 +2087,7 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"error": str(e)}, 500)
 
 HOST = os.environ.get("ASSETHUB_HOST", "0.0.0.0")
-PASSWORD = os.environ.get("ASSETHUB_PASSWORD", "")  # 非空才启用局域网鉴权；本机 localhost 始终免验证
+PASSWORD = os.environ.get("ASSETHUB_PASSWORD", "") or CONFIG.get("password", "")  # 环境变量优先，回退 data/config.json 的 password；非空才启用远程鉴权，本机 localhost 始终免验证
 
 def lan_ip():
     """获取本机局域网 IP（供手机等设备访问）"""
