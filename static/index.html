@@ -411,7 +411,7 @@
 
   /* ---------- 资产热力图（全屏浮层） ---------- */
   .hm-mask { position: fixed; inset: 0; z-index: 90; background: var(--bg);
-             display: none; flex-direction: column; padding: 16px 18px 18px; }
+             display: none; flex-direction: column; padding: max(16px, env(safe-area-inset-top, 0px)) 18px 18px; }
   .hm-mask.open { display: flex; animation: hmFade .22s ease; }
   @keyframes hmFade { from { opacity: 0 } to { opacity: 1 } }
   /* gap 与页面 header 的按钮间距一致 */
@@ -522,7 +522,7 @@
   .hm-pop .row { display: flex; justify-content: space-between; gap: 14px; color: var(--muted); }
   .hm-pop .row i { font-style: normal; color: var(--text); font-weight: 600; }
   @media (max-width: 620px) {
-    .hm-mask { padding: 12px 10px 22px; }
+    .hm-mask { padding: max(12px, env(safe-area-inset-top, 0px)) 10px 22px; }
     .hm-legend { display: none; }
   }
 
