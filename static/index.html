@@ -2591,6 +2591,33 @@ function hmBestLayout(items, W, H) {
   }
   return best || squarifyRects(byArea, W, H);
 }
+/* 把 squarify 的浮点槽位吸附到整数像素网格：
+   相邻块的共享边界在浮点下完全相等 → 取整后仍是同一整数，
+   于是「缝宽 = 内切右缘 − 下一格内切左缘」在所有接缝上恒等于同一整数像素，
+   根治浏览器子像素取整导致的缝宽忽粗忽细。 */
+function hmSnapGrid(rects) {
+  if (!rects.length) return;
+  const snapAxis = (vals) => {
+    const sorted = vals.slice().sort((a, b) => a - b);
+    const map = new Map();
+    let last = -Infinity;
+    for (const v of sorted) {
+      let c = Math.round(v);
+      if (c <= last) c = last + 1;          // 极小块两道缝取整相撞时保底最小 1px，避免重叠
+      map.set(v, c);
+      last = c;
+    }
+    return map;
+  };
+  const xs = [], ys = [];
+  for (const r of rects) { xs.push(r.x, r.x + r.w); ys.push(r.y, r.y + r.h); }
+  const xm = snapAxis(xs), ym = snapAxis(ys);
+  for (const r of rects) {
+    const x0 = xm.get(r.x), x1 = xm.get(r.x + r.w);
+    const y0 = ym.get(r.y), y1 = ym.get(r.y + r.h);
+    r.x = x0; r.y = y0; r.w = Math.max(0, x1 - x0); r.h = Math.max(0, y1 - y0);
+  }
+}
 
 /* 文本宽度：用 canvas 按真实字体精确测量（比按字符猜 em 可靠，长英文名不会被裁掉尾巴） */
 let hmCtx = null;
@@ -2808,6 +2835,7 @@ function hmDraw(animate) {
 
   const GAP = 1.5;                                  // 参考图同款细缝
   const rects = hmBestLayout(items.map(it => ({ ref: it, area: it.mv_usd })), W, H);
+  hmSnapGrid(rects);                                // 吸附到整数网格 → 缝宽恒定
   const alive = new Set();
   const pending = [];                              // 本次新建的方块：几何全部落定后统一起播
   hmIndex = new Map();
@@ -2834,26 +2862,28 @@ function hmDraw(animate) {
     const key = it.market + '|' + it.code + '|' + it.kind;
     alive.add(key);
     hmIndex.set(key, it);
-    const x = r.x + GAP / 2, y = r.y + GAP / 2;
-    const w = Math.max(0, r.w - GAP), h = Math.max(0, r.h - GAP);
+    const px = Math.round(r.x + GAP / 2);
+    const py = Math.round(r.y + GAP / 2);
+    const pw = Math.max(0, Math.round(r.x + r.w - GAP / 2) - px);
+    const ph = Math.max(0, Math.round(r.y + r.h - GAP / 2) - py);
     let el = hmCells.get(key), isNew = false;
     if (!el) {
       el = document.createElement('div');
       el.className = 'hm-cell';
       el.dataset.hmk = key;
       // 首帧先落到目标位置再淡入，避免从 (0,0) 飞入
-      el.style.left = x + 'px';
-      el.style.top = y + 'px';
-      el.style.width = w + 'px';
-      el.style.height = h + 'px';
+      el.style.left = px + 'px';
+      el.style.top = py + 'px';
+      el.style.width = pw + 'px';
+      el.style.height = ph + 'px';
       stage.appendChild(el);
       hmCells.set(key, el);
       isNew = true;
     } else {
-      el.style.left = x + 'px';
-      el.style.top = y + 'px';
-      el.style.width = w + 'px';
-      el.style.height = h + 'px';
+      el.style.left = px + 'px';
+      el.style.top = py + 'px';
+      el.style.width = pw + 'px';
+      el.style.height = ph + 'px';
     }
     if (it.kind === 'cash') {              // 现金块固定深红，lv 置 'cash'（不与图例档位冲突）
       el.style.background = HM_CASH;
@@ -2862,7 +2892,7 @@ function hmDraw(animate) {
       el.style.background = hmBg(it.day_pct);
       el.dataset.lv = hmLvKey(it.day_pct);   // 供 hover 图例色块时按档位点亮
     }
-    hmPaintCell(el, it, w, h);
+    hmPaintCell(el, it, pw, ph);
     if (isNew) pending.push([el, delayOf.get(key) || 0]);   // 内容先铺完，几何落定后再起播
   }
   for (const [k, el] of hmCells) { if (!alive.has(k)) { el.remove(); hmCells.delete(k); } }
