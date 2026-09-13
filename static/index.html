@@ -528,7 +528,7 @@
   /* ===================== 移动端适配 ===================== */
   @media (max-width: 620px) {
     /* 1. 头部：logo + slogan 上下排布、左对齐；右侧功能 btn 保持可点 */
-    header { padding: 14px 14px 0; gap: 0 10px; flex-wrap: wrap; position: relative; }   /* 移动端 brand 占满整行、slogan 第二行整宽不折行；actions 绝对定位右上角 */
+    header { padding: max(14px, env(safe-area-inset-top, 0px)) 14px 0; gap: 0 10px; flex-wrap: wrap; position: relative; }   /* 移动端：顶部内距预留 iOS 状态栏安全区（viewport-fit=cover 下内容会延伸到状态栏下），无安全区设备退化为 14px；brand 占满整行、slogan 第二行整宽不折行；actions 绝对定位右上角 */
     .brand { flex-direction: column; align-items: flex-start; gap: 2px; flex: 1 1 100%; min-width: 0; }
     .brand h1 { margin-left: 0; }   /* logo 与 slogan 视觉左缘对齐（桌面端 h1 有 18px 左距，手机端去掉） */
     .brand .slogan { margin-left: 0; transform: none; align-self: stretch; max-width: none;
