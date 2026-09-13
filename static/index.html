@@ -626,17 +626,20 @@
      取消平铺换行 → 单行从左到右排列、可横滑；左右内距由 JS 对齐到 slogan 左缘；
      底部分割线 1px var(--border) 与 asset 页头部（.ticker-wrap）同源 */
   .news-tabs-bar { display: none; border-bottom: 1px solid var(--border); }
-  .news-tabs-bar.show { display: block; }
+  .news-tabs-bar.show { display: flex; align-items: stretch; }
   .tabs { display: flex; gap: 8px; align-items: center; flex-wrap: nowrap;
           overflow-x: auto; overflow-y: hidden;
-          padding: 8px 18px;
+          padding: 0 18px; position: relative; flex: 1 1 auto; min-width: 0;
           scrollbar-width: none; -webkit-overflow-scrolling: touch; }
   .tabs::-webkit-scrollbar { display: none; }
-  .tab { border: 1px solid var(--border); border-radius: 8px; padding: 4px 12px;
-         font-size: 12px; cursor: pointer; color: var(--muted); background: transparent;
-         transition: all .15s; white-space: nowrap; flex: none; }
-  .tab:hover { color: var(--text); border-color: rgba(255,255,255,.2); }
-  .tab.active { background: #fff; color: #1c1c1e; border-color: #fff; }
+  .tab { padding: 4px 10px; font-size: 13px; cursor: pointer; color: var(--muted);
+         background: transparent; transition: color .15s; white-space: nowrap; flex: none; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--text); font-weight: 700; }
+  /* 选中态底部滑动横线（替代白底块）：随选中 tag 平滑滑动 */
+  .tab-underline { position: absolute; left: 0; bottom: 0; height: 2px;
+                   background: var(--text); border-radius: 2px; pointer-events: none;
+                   transition: transform .25s ease, width .25s ease; }
   .tab-empty { font-size: 12px; color: var(--muted); padding: 4px 2px; }
   .news-list { padding: 2px 4px 14px; }
   .news-item { padding: 9px 0; border-bottom: 1px solid rgba(255,255,255,.05); }
@@ -965,7 +968,7 @@ const I18N = {
     please_valid: '请填写有效的数量、成本价', please_fund_valid: '请填写基金代码和当前市值',
     us_only_stock: '美元 tab 只能添加美股，如 NVDA；A股/港股请到人民币 tab 添加',
     cn_only_cn_hk: '人民币 tab 请填写 A股(sh/sz) 或港股(hk) 代码，如 sh600584 或 hk00700',
-    no_news: '暂无新闻', load_failed: '加载失败：', news_us: '美股', news_cn: 'A股', news_mkt: '市场', news_field: '领域', no_tags: '暂无领域',
+    no_news: '暂无新闻', news_all: '全部', load_failed: '加载失败：', news_us: '美股', news_cn: 'A股', news_mkt: '市场', news_field: '领域', no_tags: '暂无领域',
     today_ret: '今日收益', yday_ret: '昨日收益', nav_ret: '收益', no_data: '暂无数据', no_nav: '暂无净值走势',
     kw_none: '相关新闻', search_src: '东方财富检索',
     otc_fund: '场外基金 ｜ 净值滞后', cny_fund: '人民币基金 ｜ 净值滞后', total_ret: '总收益', today: '当日',
@@ -1000,7 +1003,7 @@ const I18N = {
     please_valid: 'Please enter valid shares & cost', please_fund_valid: 'Please enter fund code and market value',
     us_only_stock: 'USD tab: US stocks only, e.g. NVDA. Add A-shares/HK stocks in the CNY tab',
     cn_only_cn_hk: 'CNY tab: use A-share (sh/sz) or HK (hk) codes, e.g. sh600584 or hk00700',
-    no_news: 'No news', load_failed: 'Load failed: ', news_us: 'US', news_cn: 'A-Share', news_mkt: 'Markets', news_field: 'Sectors', no_tags: 'No sectors',
+    no_news: 'No news', news_all: 'All', load_failed: 'Load failed: ', news_us: 'US', news_cn: 'A-Share', news_mkt: 'Markets', news_field: 'Sectors', no_tags: 'No sectors',
     today_ret: 'Today', yday_ret: 'Yesterday', nav_ret: 'ret', no_data: 'No data', no_nav: 'No NAV trend',
     kw_none: 'related news', search_src: 'Eastmoney search',
     otc_fund: 'OTC Fund ｜ NAV lag', cny_fund: 'CNY Fund ｜ NAV lag', total_ret: 'Total', today: 'Today',
@@ -2066,15 +2069,21 @@ async function buildNewsTabs() {
      (n.related_kw && n.related_kw.indexOf(sec) !== -1) ||
      (n.related && n.related.indexOf(sec) !== -1));
   const secs = (newsTags || []).filter(hasKw);
+  const allTab =
+    `<span class="tab active" data-k="__all__" onclick="switchTab(this)">${_t('news_all')}</span>`;
   const mkt =
-    `<span class="tab active" data-k="__us__" onclick="switchTab(this)">${_t('news_us')}</span>` +
+    `<span class="tab" data-k="__us__" onclick="switchTab(this)">${_t('news_us')}</span>` +
     `<span class="tab" data-k="__cn__" onclick="switchTab(this)">${_t('news_cn')}</span>`;
   const kws = secs.map(sec =>
     `<span class="tab" data-k="__kw__" data-kw="${esc(sec)}" onclick="switchTab(this)">${esc(secName(sec))}</span>`).join('');
   $('news-tabs').innerHTML =
-    mkt +
-    (kws || `<span class="tab-empty">${_t('no_tags')}</span>`);
-  alignTabsToSlogan();      // 首个 tag 与 slogan 左缘对齐
+    allTab + mkt +
+    (kws || `<span class="tab-empty">${_t('no_tags')}</span>`) +
+    `<span class="tab-underline" id="tab-underline"></span>`;
+  alignTabsToLogo();        // 首个 tag 左缘与 logo 左缘对齐
+  const _u = $('tab-underline');
+  if (_u) { _u.style.transition = 'none'; moveTabUnderline();
+            requestAnimationFrame(() => { const u2 = $('tab-underline'); if (u2) u2.style.transition = ''; }); }
 }
 
 let tickerCache = [];
@@ -2153,9 +2162,12 @@ async function loadNewsByTag(el) {
   const k = el.dataset.k;
   $('news-list').innerHTML = '<div class="loading" data-i18n="loading">加载中…</div>';
   try {
-    if (k === '__us__' || k === '__cn__') {
+    if (k === '__all__') {
+      const items = await api('/api/news');
+      renderNewsList(items.slice(0, 30), _t('no_news'));
+    } else if (k === '__us__' || k === '__cn__') {
       const items = await api('/api/news?cat=' + (k === '__cn__' ? 'cn' : 'us'));
-      renderNewsList(items.slice(0, 30), k === '__cn__' ? _t('no_news') : _t('no_news'));
+      renderNewsList(items.slice(0, 30), _t('no_news'));
     } else if (k === '__kw__') {
       const kw = el.dataset.kw;
       const items = await api('/api/news?kw=' + encodeURIComponent(kw));
@@ -2190,21 +2202,23 @@ async function loadStockNews(code) {
   } catch (e) { $('news-list').innerHTML = '<div class="loading">' + _t('load_failed') + e.message + '</div>'; }
 }
 
-/* news 标签栏：固定为单行横滑（不再平铺、不再随滚动折叠），整条随 header 一起 sticky 在 slogan 下方 */
-/* 首个 tag 左缘与 slogan 左缘对齐：
+/* news 标签栏：固定为单行横滑（不再平铺、不再随滚动折叠），整条随 header 一起 sticky 在 logo 下方 */
+/* 首个 tag 左缘与 logo 左缘对齐：
    tag 栏需要通栏（底部分割线要和 asset 页头部一致地撑满整行），
-   而 slogan 在桌面位于 logo 右侧、移动端独占一行且左右内距与 main 不同，
-   故用实时测量而非固定值；语言/字号/窗口尺寸变化后重算。 */
-function alignTabsToSlogan() {
-  const tabs = $('news-tabs'), bar = $('news-tabs-bar'), sl = document.querySelector('.slogan');
-  if (!tabs || !bar || !sl) return;
-  const left = sl.getBoundingClientRect().left - bar.getBoundingClientRect().left;
+   logo 在桌面/移动端均位于头部最左（左内距 18px），故以 .logo 实测左缘为准；
+   语言/字号/窗口尺寸变化后重算。 */
+function alignTabsToLogo() {
+  const tabs = $('news-tabs'), bar = $('news-tabs-bar'), lg = document.querySelector('.logo');
+  if (!tabs || !bar || !lg) return;
+  const left = lg.getBoundingClientRect().left - bar.getBoundingClientRect().left;
   const pad = Math.max(0, Math.round(left * 10) / 10);
   tabs.style.paddingLeft = pad + 'px';
   tabs.style.paddingRight = pad + 'px';
+  moveTabUnderline();        // logo 对齐改变左内距后，横线跟随选中 tag 新位置
 }
-window.addEventListener('resize', alignTabsToSlogan);
-window.addEventListener('load', alignTabsToSlogan);
+window.addEventListener('resize', alignTabsToLogo);
+window.addEventListener('load', function(){ alignTabsToLogo(); syncNewsBarHeight(); });
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => syncNewsBarHeight());
 /* 选中某个 tag 后保证它在可视区内：
    ① 已完整可见 → 原地不动（保持从左到右的原始位置，避免无故平移）
    ② 右侧被裁掉 → 滚到容器水平中心 */
@@ -2217,10 +2231,28 @@ function centerActiveTab(tabs) {
   tabs.scrollTo({ left: Math.max(0, tabs.scrollLeft + delta), behavior: 'smooth' });
 }
 
+function moveTabUnderline() {
+  const tabs = $('news-tabs'), el = tabs && tabs.querySelector('.tab.active');
+  const u = tabs && tabs.querySelector('#tab-underline');
+  if (!el || !u) return;
+  u.style.width = el.offsetWidth + 'px';
+  u.style.transform = 'translateX(' + el.offsetLeft + 'px)';
+}
+let _tickerH = 0;
+function syncNewsBarHeight() {
+  const tw = document.querySelector('.ticker-wrap');
+  const tb = $('news-tabs-bar');
+  if (!tw || !tb) return;
+  let h = tw.offsetHeight;
+  if (!h) { tw.style.display = ''; h = tw.offsetHeight; tw.style.display = 'none'; } // 隐藏时临时显出测量
+  if (h) _tickerH = h;
+  tb.style.minHeight = (_tickerH || 0) + 'px'; // 总高对齐（box-sizing:border-box，含 1px 下边框）
+}
 function switchTab(el, skipFilter) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
   centerActiveTab($('news-tabs'));   // 选中靠后的 tag 自动滚入可视区并居中
+  moveTabUnderline();                // 滑动横线移动到选中 tag 底部
   if (!skipFilter) loadNewsByTag(el);
 }
 
@@ -2236,9 +2268,11 @@ function switchPage(page) {
   // News 页改为在 slogan 下方展示一行横滑 tag 栏（底部分割线与 asset 页头部同源）
   const tb = $('news-tabs-bar');
   if (tb) tb.classList.toggle('show', !asset);
+  if (asset) syncNewsBarHeight();   // 回到 asset 页时 ticker 可见，重新测量其高度
   if (!asset) {
     window.scrollTo(0, 0);      // 列表从头开始
-    alignTabsToSlogan();        // 首个 tag 与 slogan 左缘对齐
+    alignTabsToLogo();          // 首个 tag 左缘与 logo 左缘对齐
+    syncNewsBarHeight();        // news 头部整体高度与 asset 页（header+ticker）一致
   }
 }
 
@@ -2302,7 +2336,7 @@ marketsPlaceholder();  // 核心指标先占位，数据到达后动效填充
 loadPortfolio();
 loadMarkets();
 loadTicker();
-loadNewsByTag({ dataset: { k: '__us__' } });   // News 默认加载美股新闻
+loadNewsByTag({ dataset: { k: '__all__' } });   // News 默认加载全部新闻
 loadPreference();
 applyColorMode();
 moveMtabSlider();
