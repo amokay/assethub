@@ -905,17 +905,17 @@ def get_markets():
                 if key == "sh000001":
                     add_cn("sh000001", "上证指数", price, prev, "点")
                     pts, prog = _intraday_qq("sh000001", 240)
-                    cn_sparks["sh000001"] = {"pts": pts, "progress": _session_progress("cn")} if pts else \
+                    cn_sparks["sh000001"] = {"pts": pts, "progress": _idx_progress("cn")} if pts else \
                         fetch_bench_spark("qq", "sh000001")["values"]
                 elif key == "sz399006":
                     add_cn("sz399006", "创业板指", price, prev, "点")
                     pts, prog = _intraday_qq("sz399006", 240)
-                    cn_sparks["sz399006"] = {"pts": pts, "progress": _session_progress("cn")} if pts else \
+                    cn_sparks["sz399006"] = {"pts": pts, "progress": _idx_progress("cn")} if pts else \
                         fetch_bench_spark("qq", "sz399006")["values"]
                 elif key == "hkHSI":
                     add_cn("hkHSI", "恒生指数", price, prev, "点")
                     pts, prog = _intraday_qq("hkHSI", 330)
-                    cn_sparks["hkHSI"] = {"pts": pts, "progress": _session_progress("hk")} if pts else \
+                    cn_sparks["hkHSI"] = {"pts": pts, "progress": _idx_progress("hk")} if pts else \
                         fetch_bench_spark("qq", "hkHSI")["values"]
         except Exception:
             pass
@@ -1159,6 +1159,24 @@ def _session_progress(market):
         return 1.0
     return 1.0
 
+
+def _idx_progress(market):
+    """核心指数分时进度（安全版）：仅当该市场当前确实处于交易时段（工作日 + 对应连续时段）
+    才按实时进度绘制；其余情形（周末 / 节假日 / 盘前盘后 / 夜间）一律返回 1.0，
+    把最近交易日的完整分时画满，避免非交易时段按'当前时钟'只画到午休附近而显得 K 线'变短'。
+    cn 时段 9:30-15:00（北京，午休跳过）；hk 时段 9:30-16:00（香港）。"""
+    import datetime as _dt
+    now = _dt.datetime.now()
+    mins = now.hour * 60 + now.minute
+    if market == "cn":
+        live = now.weekday() < 5 and 570 <= mins <= 900
+    elif market == "hk":
+        live = now.weekday() < 5 and 570 <= mins <= 960
+    else:
+        live = False
+    return _session_progress(market) if live else 1.0
+
+
 def _fill_minutes_idx(items, start_mins, end_mins):
     """按分钟网格补全分时序列：items=[(分钟索引, price)] 升序，缺失分钟用前值填充。
     返回价格序列（长度 = end-start+1，所有标的同一时间轴）"""
@@ -1248,7 +1266,10 @@ def get_stock_klines():
                             end_mins = 900
                         pts = _fill_minutes_idx(items, 570, max(570, min(end_mins, 900)))
                         if pts:
-                            return (c, {"pts": pts, "progress": _session_progress("cn")})
+                            # 仅当日实时盘中(工作日 9:30-15:00)用实时进度；
+                            # 收盘后/周末显示的是最近交易日完整分时 → progress 固定 1.0（画满，不随时间漂移）
+                            cn_live = (now.weekday() < 5 and 570 <= now_mins <= 900)
+                            return (c, {"pts": pts, "progress": _session_progress("cn") if cn_live else 1.0})
                 else:
                     # 美股：Nasdaq 官方 intraday chart（1 分钟粒度，覆盖盘前 4:00 起；
                     # 盘前取 4:00 起的盘前分时，开盘后取 9:30 起的盘中分时）。东财 trends2 备用。
@@ -1329,7 +1350,10 @@ def get_stock_klines():
                     if pts:
                         # 备用东财兜底的数据无时段概念（东财 trends2 从 21:30 起），统一按分母估算进度
                         dnm = 330.0 if _dt.time(4, 0) <= cur < _dt.time(9, 30) else 390.0
-                        return (c, {"pts": pts, "progress": _session_progress("us")})
+                        # 仅当日盘前/盘中/盘后(工作日 4:00-20:00 ET)用实时进度；
+                        # 周末/凌晨回溯显示的是最近交易日完整分时 → progress 固定 1.0（画满，不随时间漂移）
+                        us_live = (not is_wknd) and (_dt.time(4, 0) <= cur < _dt.time(20, 0))
+                        return (c, {"pts": pts, "progress": _session_progress("us") if us_live else 1.0})
             except Exception:
                 pass
             return (c, None)
