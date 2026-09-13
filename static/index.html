@@ -106,12 +106,13 @@
   /* 轨道宽度加宽到 46px，给方形滑块留出左右滑动空间（仅加宽，高/圆角不变） */
   .cs-track { width: 46px; height: 29px; border-radius: 8px; background: var(--card-hover);
               border: 1px solid var(--border); position: relative; }
-  /* 滑块：方形导角（r6），放大到上下各 2px 间距（29-2-2=25 正方） */
-  .cs-thumb { position: absolute; top: 1px; left: 2px; width: 25px; height: 25px;
-              border-radius: 6px; background: var(--muted);
+  /* 滑块：方形导角（r4），四周留 4px 间距（29-4-4=21 正方）；1px rgba(255,255,255,.1) 描边 */
+  .cs-thumb { position: absolute; top: 3px; left: 3px; width: 21px; height: 21px;
+              box-sizing: border-box; border: 1px solid rgba(255,255,255,.1);
+              border-radius: 4px; background: var(--muted);
               transition: left .25s cubic-bezier(.4,.2,.2,1), background .2s; }
-  .color-switch.mode-up-green .cs-thumb { left: 19px; background: var(--green); }
-  .color-switch.mode-up-red .cs-thumb { left: 2px; background: var(--red); }
+  .color-switch.mode-up-green .cs-thumb { left: 20px; background: var(--green); }
+  .color-switch.mode-up-red .cs-thumb { left: 3px; background: var(--red); }
   .meta { color: var(--muted); font-size: 11px; }
   .badge { font-size: 10px; padding: 2px 7px; border-radius: 10px; }
   .badge.open { background: rgba(48,209,88,.18); color: var(--green); }
