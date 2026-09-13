@@ -24,7 +24,7 @@
          background: var(--bg); color: var(--text); font-size: 14px;
          -webkit-font-smoothing: antialiased; }
   header { background: rgba(12,12,14,.85); backdrop-filter: blur(18px);
-           padding: 24px 18px 0;   /* 去掉 border-bottom（ticker 上方那条线）；底部内距归零，使 slogan→新闻 的间距 = ticker 自带 padding 8px，与 新闻→下方横线 的 8px 一致 */
+           padding: 24px 36px 0 18px;   /* 左右内距：左 18(=logo 左距的组成) + h1 18 → logo 左缘 36；右 36 使刷新 btn 右缘与 logo 左缘等高对称 */
            display: flex; align-items: center; gap: 12px; }
   /* 品牌区（logo + slogan）与右侧操作区各自成组，便于移动端单独排布 */
   .brand { display: flex; align-items: flex-end; gap: 12px; min-width: 0; }   /* 桌面：slogan 底边与 logo 底边对齐（移动端在 media query 改为 flex-start 左对齐） */
