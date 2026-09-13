@@ -103,12 +103,13 @@
   .color-switch { display: flex; align-items: center; gap: 6px; cursor: pointer;
                   user-select: none; }
   .cs-label { font-size: 11px; color: var(--muted); white-space: nowrap; }
-  .cs-track { width: 40px; height: 22px; border-radius: 11px; background: var(--card-hover);
+  /* 方形导角：高度/圆角与刷新按钮一致（29px / 8px），不再是胶囊 */
+  .cs-track { width: 30px; height: 29px; border-radius: 8px; background: var(--card-hover);
               border: 1px solid var(--border); position: relative; }
-  .cs-thumb { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+  .cs-thumb { position: absolute; top: 8px; left: 2px; width: 12px; height: 12px;
               border-radius: 50%; background: var(--muted);
               transition: left .25s cubic-bezier(.4,.2,.2,1), background .2s; }
-  .color-switch.mode-up-green .cs-thumb { left: 20px; background: var(--green); }
+  .color-switch.mode-up-green .cs-thumb { left: 16px; background: var(--green); }
   .color-switch.mode-up-red .cs-thumb { left: 2px; background: var(--red); }
   .meta { color: var(--muted); font-size: 11px; }
   .badge { font-size: 10px; padding: 2px 7px; border-radius: 10px; }
