@@ -66,8 +66,9 @@
             padding: 8px 18px; will-change: transform; }
   .ticker-item { display: inline-flex; align-items: center; gap: 8px; margin-right: 34px;
                  color: var(--muted); text-decoration: none; font-size: 13px; }
-  .ticker-item:hover .tk-title { color: var(--accent); }
-  .tk-title { transition: color .15s; }
+  .ticker-item:hover { color: #fff; }
+  .ticker-item:hover .tk-title { color: #fff; }
+  .tk-title { color: #6e6e73; transition: color .15s; }
   .tk-chip { font-size: 10px; font-weight: 700; letter-spacing: .5px;
              background: rgba(47,129,247,.22); color: #6db0ff;
              border: 1px solid rgba(47,129,247,.4); border-radius: 5px; padding: 1px 6px; }
@@ -2097,7 +2098,7 @@ let tickerLastTs = 0;         // 上一帧时间戳
 function tickerStep(ts) {
   if (!tickerPaused && tickerHalfW > 0) {
     const dt = tickerLastTs ? (ts - tickerLastTs) : 16;
-    tickerPos -= 30 * dt / 1000;              // 速度约 30px/s（用户要求降低一倍）
+    tickerPos -= 15 * dt / 1000;              // 速度约 15px/s（用户要求继续降低滚动速度）
     if (-tickerPos >= tickerHalfW) tickerPos += tickerHalfW;   // 无缝回卷
     $('ticker').style.transform = `translateX(${tickerPos}px)`;
   }
