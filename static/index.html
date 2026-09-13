@@ -1834,11 +1834,12 @@ function mobileHoverSync() {
   if (!ts) return;
   const topBottom = ts.getBoundingClientRect().bottom;
   const vh = window.innerHeight || document.documentElement.clientHeight;
-  const NEAR = vh * 0.62;               // 卡片中心落在头部下缘到视口 62% 区间才点亮（≈ 屏幕上半部）
+  const MID = vh * 0.5;                  // 卡片上滑至视口中线即点亮 K 线；上探到头部下缘即取消
   document.querySelectorAll('.flip').forEach(el => {
     if (el.classList.contains('flipped')) { el.classList.remove('mobile-hover'); return; }
     const r = el.getBoundingClientRect();
-    const visible = r.bottom > topBottom && r.top < NEAR && r.bottom <= vh + 1;
+    // 点亮：卡片顶部已越过中线（从下方滑到屏幕正中）、且尚未触及头部下缘（触及即取消）、且仍在屏内
+    const visible = r.top > topBottom && r.top <= MID && r.bottom <= vh + 1;
     el.classList.toggle('mobile-hover', visible);
   });
 }
