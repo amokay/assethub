@@ -102,14 +102,15 @@
   /* 涨跌配色开关 */
   .color-switch { display: flex; align-items: center; gap: 6px; cursor: pointer;
                   user-select: none; }
-  .cs-label { font-size: 11px; color: var(--muted); white-space: nowrap; }
   /* 方形导角：高度/圆角与刷新按钮一致（29px / 8px），不再是胶囊 */
-  .cs-track { width: 30px; height: 29px; border-radius: 8px; background: var(--card-hover);
+  /* 轨道宽度加宽到 46px，给方形滑块留出左右滑动空间（仅加宽，高/圆角不变） */
+  .cs-track { width: 46px; height: 29px; border-radius: 8px; background: var(--card-hover);
               border: 1px solid var(--border); position: relative; }
-  .cs-thumb { position: absolute; top: 8px; left: 2px; width: 12px; height: 12px;
-              border-radius: 50%; background: var(--muted);
+  /* 滑块：方形导角（r6），放大到上下各 2px 间距（29-2-2=25 正方） */
+  .cs-thumb { position: absolute; top: 1px; left: 2px; width: 25px; height: 25px;
+              border-radius: 6px; background: var(--muted);
               transition: left .25s cubic-bezier(.4,.2,.2,1), background .2s; }
-  .color-switch.mode-up-green .cs-thumb { left: 16px; background: var(--green); }
+  .color-switch.mode-up-green .cs-thumb { left: 19px; background: var(--green); }
   .color-switch.mode-up-red .cs-thumb { left: 2px; background: var(--red); }
   .meta { color: var(--muted); font-size: 11px; }
   .badge { font-size: 10px; padding: 2px 7px; border-radius: 10px; }
@@ -535,7 +536,6 @@
                overflow-wrap: break-word; display: block; min-width: 0; }
     .header .spacer { display: none; }
     .header-actions { position: absolute; top: 12px; right: 14px; gap: 8px; flex: none; }   /* 脱离流固定右上角，slogan 可整宽第二行不折行 */
-    .cs-label { display: none; }   /* 省空间，保留切换轨道 */
 
     /* 2. 美元/人民币 tab：胶囊最小宽度 + 文字不折行；as-of 与 tab 同一行靠右，时间/汇率各一行 */
     .market-tabs { flex-wrap: wrap; gap: 14px; }
@@ -674,7 +674,6 @@
   <span class="spacer"></span>
   <div class="header-actions">
     <span class="color-switch mode-up-red" id="cs" onclick="toggleColorMode()" title="切换涨跌配色">
-      <span class="cs-label" id="cs-label">涨红跌绿</span>
       <span class="cs-track"><span class="cs-thumb"></span></span>
     </span>
     <div class="lang-wrap" id="lang-wrap">
@@ -1200,7 +1199,6 @@ function applyColorMode() {
   const sw = $('cs');
   sw.classList.toggle('mode-up-green', upGreen);
   sw.classList.toggle('mode-up-red', !upGreen);
-  $('cs-label').textContent = upGreen ? _t('upgreen') : _t('upred');
   // 涨跌色变了 → 热力图色阶缓存作废（浮层没开也要清，否则下次打开还是旧色）
   hmRecolor();
   // 热力图若开着，底色与图例同步反转
