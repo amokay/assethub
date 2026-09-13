@@ -655,14 +655,14 @@
                  border-radius: 4px; padding: 1px 5px; margin-left: 6px; }
   .loading { color: var(--muted); padding: 28px; text-align: center; }
   /* 鱼骨图 loading：鱼骨形骨架 + 沿脊柱游动的光点（滚动新闻 / 核心指数 加载态共用） */
-  .fb-loading { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); white-space: nowrap; }
-  .fb-loading .fb-text { font-size: 12px; }
-  .fb-svg { width: 84px; height: 18px; overflow: visible; flex: none; }
-  .fb-svg .fb-spine, .fb-svg .fb-rib, .fb-svg .fb-head { stroke: var(--muted); stroke-width: 1.4; fill: none; stroke-linecap: round; }
-  .fb-svg .fb-dot { fill: var(--accent); animation: fbSwim 1.5s ease-in-out infinite alternate; }
-  .fb-svg .fb-group { animation: fbPulse 1.5s ease-in-out infinite; transform-origin: center; }
-  @keyframes fbPulse { 0%,100% { opacity: .5 } 50% { opacity: 1 } }
-  @keyframes fbSwim { from { transform: translateX(0); } to { transform: translateX(66px); } }
+  /* 加载占位图：标准「图片占位」图标（框 + 太阳 + 山），轻微脉冲表示加载中 */
+  .ph-loading { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); white-space: nowrap; }
+  .ph-loading .ph-text { font-size: 12px; }
+  .ph-svg { width: 42px; height: 32px; overflow: visible; flex: none; }
+  .ph-svg .ph-frame, .ph-svg .ph-mtn { stroke: var(--muted); stroke-width: 1.6; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .ph-svg .ph-sun { fill: var(--muted); }
+  .ph-svg .ph-group { animation: phPulse 1.5s ease-in-out infinite; transform-origin: center; }
+  @keyframes phPulse { 0%,100% { opacity: .45 } 50% { opacity: 1 } }
 
   .toast { position: fixed; bottom: 24px; right: 24px; background: rgba(60,60,67,.92); color: #fff;
            border-radius: 10px; padding: 10px 18px; font-size: 13px; opacity: 0;
@@ -702,7 +702,7 @@
     </button>
   </div>
 </header>
-<div class="ticker-wrap"><div class="ticker" id="ticker"><span class="fb-loading" style="padding:0 16px"><svg class="fb-svg" viewBox="0 0 84 18" aria-hidden="true"><g class="fb-group"><line class="fb-spine" x1="8" y1="9" x2="74" y2="9"/><line class="fb-rib" x1="20" y1="9" x2="15" y2="3.5"/><line class="fb-rib" x1="20" y1="9" x2="15" y2="14.5"/><line class="fb-rib" x1="32" y1="9" x2="27" y2="3.5"/><line class="fb-rib" x1="32" y1="9" x2="27" y2="14.5"/><line class="fb-rib" x1="44" y1="9" x2="39" y2="3.5"/><line class="fb-rib" x1="44" y1="9" x2="39" y2="14.5"/><line class="fb-rib" x1="56" y1="9" x2="51" y2="3.5"/><line class="fb-rib" x1="56" y1="9" x2="51" y2="14.5"/><line class="fb-rib" x1="66" y1="9" x2="61" y2="3.5"/><line class="fb-rib" x1="66" y1="9" x2="61" y2="14.5"/><circle class="fb-head" cx="78" cy="9" r="3.2"/><circle class="fb-dot" cx="8" cy="9" r="2.2"/></g></svg><span class="fb-text" data-i18n="loading_news">新闻加载中…</span></span></div></div>
+<div class="ticker-wrap"><div class="ticker" id="ticker"><span class="ph-loading" style="padding:0 16px"><svg class="ph-svg" viewBox="0 0 48 36" aria-hidden="true"><g class="ph-group"><rect class="ph-frame" x="3" y="3" width="42" height="30" rx="4"/><circle class="ph-sun" cx="15" cy="12" r="4"/><path class="ph-mtn" d="M6 30 L18 18 L26 25 L32 19 L42 30"/></g></svg><span class="ph-text" data-i18n="loading_news">新闻加载中…</span></span></div></div>
 <!-- News 页 tag 栏：与 asset 页头部同一套底部分割线；一行横滑、首个 tag 与 slogan 左缘对齐 -->
 <div class="news-tabs-bar" id="news-tabs-bar"><div class="tabs" id="news-tabs"></div></div>
 </div>
@@ -1269,11 +1269,11 @@ function sparkSvg(points, w, h, dir, progress, sw) {
   </svg>`;
 }
 
-const FISHBONE_SVG = `<svg class="fb-svg" viewBox="0 0 84 18" aria-hidden="true"><g class="fb-group"><line class="fb-spine" x1="8" y1="9" x2="74" y2="9"/><line class="fb-rib" x1="20" y1="9" x2="15" y2="3.5"/><line class="fb-rib" x1="20" y1="9" x2="15" y2="14.5"/><line class="fb-rib" x1="32" y1="9" x2="27" y2="3.5"/><line class="fb-rib" x1="32" y1="9" x2="27" y2="14.5"/><line class="fb-rib" x1="44" y1="9" x2="39" y2="3.5"/><line class="fb-rib" x1="44" y1="9" x2="39" y2="14.5"/><line class="fb-rib" x1="56" y1="9" x2="51" y2="3.5"/><line class="fb-rib" x1="56" y1="9" x2="51" y2="14.5"/><line class="fb-rib" x1="66" y1="9" x2="61" y2="3.5"/><line class="fb-rib" x1="66" y1="9" x2="61" y2="14.5"/><circle class="fb-head" cx="78" cy="9" r="3.2"/><circle class="fb-dot" cx="8" cy="9" r="2.2"/></g></svg>`;
-function fishboneHTML(text) { return `<span class="fb-loading">${FISHBONE_SVG}<span class="fb-text">${text}</span></span>`; }
+const PLACEHOLDER_SVG = `<svg class="ph-svg" viewBox="0 0 48 36" aria-hidden="true"><g class="ph-group"><rect class="ph-frame" x="3" y="3" width="42" height="30" rx="4"/><circle class="ph-sun" cx="15" cy="12" r="4"/><path class="ph-mtn" d="M6 30 L18 18 L26 25 L32 19 L42 30"/></g></svg>`;
+function placeholderHTML(text) { return `<span class="ph-loading">${PLACEHOLDER_SVG}<span class="ph-text">${text}</span></span>`; }
 
 function marketsPlaceholder() {
-  const ph = () => `<div class="mkt-ph" style="grid-column:1/-1;display:flex;justify-content:center;align-items:center;gap:10px;min-height:64px;color:var(--muted)">${fishboneHTML(_t('loading_markets'))}</div>`;
+  const ph = () => `<div class="mkt-ph" style="grid-column:1/-1;display:flex;justify-content:center;align-items:center;gap:10px;min-height:64px;color:var(--muted)">${placeholderHTML(_t('loading_markets'))}</div>`;
   $('markets').innerHTML = ph();
   $('markets-cn').innerHTML = ph();
 }
