@@ -966,7 +966,7 @@ const I18N = {
     edit: '修改', save: '保存', saved: '已保存', save_failed: '保存失败：', please_fund_edit: '请填写有效的份额、成本单价与收益',
     stock_code: '股票代码', shares: '数量（股）', cost_per_share: '成本价（美元/股）', please_add: '请添加',
     fund_code: '基金代码', fund_shares: '份数', mkt_value_cny: '当前市值（元）',
-    refreshed: '已刷新', added: '已添加', add_failed: '添加失败：', deleted: '已删除', delete_failed: '删除失败：',
+    added: '已添加', add_failed: '添加失败：', deleted: '已删除', delete_failed: '删除失败：',
     modified: '已修改', modify_failed: '修改失败：', save_failed: '保存失败',
     please_valid: '请填写有效的数量、成本价', please_fund_valid: '请填写基金代码和当前市值',
     us_only_stock: '美元 tab 只能添加美股，如 NVDA；A股/港股请到人民币 tab 添加',
@@ -1001,7 +1001,7 @@ const I18N = {
     edit: 'Edit', save: 'Save', saved: 'Saved', save_failed: 'Save failed: ', please_fund_edit: 'Please enter valid shares, cost & P&L',
     stock_code: 'Stock Code', shares: 'Shares', cost_per_share: 'Cost / Share (USD)', please_add: 'Please add',
     fund_code: 'Fund Code', fund_shares: 'Shares', mkt_value_cny: 'Market Value (CNY)',
-    refreshed: 'Refreshed', added: 'Added', add_failed: 'Add failed: ', deleted: 'Deleted', delete_failed: 'Delete failed: ',
+    added: 'Added', add_failed: 'Add failed: ', deleted: 'Deleted', delete_failed: 'Delete failed: ',
     modified: 'Modified', modify_failed: 'Modify failed: ', save_failed: 'Save failed',
     please_valid: 'Please enter valid shares & cost', please_fund_valid: 'Please enter fund code and market value',
     us_only_stock: 'USD tab: US stocks only, e.g. NVDA. Add A-shares/HK stocks in the CNY tab',
@@ -2307,7 +2307,7 @@ function refreshAll(ev) {
     btn.addEventListener('animationend', () => btn.classList.remove('spinning'), { once: true });
   }
   showPriceLoading();   // 价格后加小 loading 动效，数据返回重建后自动消失
-  loadPortfolio(true).then(() => toast(_t('refreshed')));   // 强制绕过缓存取一次最新价
+  loadPortfolio(true);   // 强制绕过缓存取一次最新价（刷新后不再弹"已刷新"toast，旋转动画已表意）
   loadMarkets();
   loadPreference();
   loadTicker();
