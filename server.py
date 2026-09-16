@@ -518,11 +518,14 @@ def get_portfolio(force=False):
         for f in funds:
             cpn0 = f.get("cost_per_nav") or 0
             shares = f.get("shares") or (round(f.get("cost", 0) / cpn0, 2) if cpn0 else 0)
-            # 最新 nav：优先 nav_hist 最新日（用户追加），否则用静态 nav 字段
+            # 最新 nav：优先官网实时抓取（贝莱德已接，force 刷新，缓存 6h），失败回退本地 nav_hist/静态 nav
+            nav_val, nav_date = fetch_us_fund_nav(f, force=force)
             nh = f.get("nav_hist") or {}
             nh_dates = sorted(nh.keys())
-            nav_val = nh[nh_dates[-1]] if nh_dates else f.get("nav")
-            # 市值随 nav 联动：份额 × 最新 nav → 用户更新 nav/nav_hist 即自动重算，无需手填 market_value
+            if nav_val is None:
+                nav_val = nh[nh_dates[-1]] if nh_dates else f.get("nav")
+                nav_date = nh_dates[-1] if nh_dates else f.get("nav_date", "")
+            # 市值随 nav 联动：份额 × 最新 nav → 更新 nav 即自动重算，无需手填 market_value
             mv0 = shares * nav_val if (shares and nav_val) else (f.get("market_value", 0) or 0)
             fd = {"name": f.get("name", ""), "code": f.get("code", ""),
                   "market_value": round(mv0, 2),
@@ -530,11 +533,13 @@ def get_portfolio(force=False):
                   "cost_per_nav": cpn0,
                   "shares": shares,
                   "nav": nav_val,
+                  "nav_date": nav_date,
                   "pnl": mv0 - f.get("cost", 0)}
-            # 净值日涨幅（手动维护 nav_hist：{date: nav}，用于精确的"今日收益"）
-            if len(nh_dates) >= 2:
-                fd["day_pct"] = round((nh[nh_dates[-1]] / nh[nh_dates[-2]] - 1) * 100, 3)
-                fd["nav_date"] = nh_dates[-1]
+            # 净值日涨幅（nav_date 较前一交易日）
+            if len(nh_dates) >= 2 and nav_date in nh_dates:
+                i = nh_dates.index(nav_date)
+                if i >= 1:
+                    fd["day_pct"] = round((nh[nav_date] / nh[nh_dates[i - 1]] - 1) * 100, 3)
             for b in FUND_BENCH:
                 if b[0] in f.get("name", ""):
                     bsp = fetch_bench_spark(b[2], b[3])
@@ -549,7 +554,7 @@ def get_portfolio(force=False):
         for f in funds_cny:
             cost0 = f.get("cost", 0) or 0
             mv_static = f.get("market_value", 0) or 0
-            nav = fetch_cn_fund_nav(f.get("code", ""))
+            nav = fetch_cn_fund_nav(f.get("code", ""), force=force)
             latest = nav["values"][-1] if nav["values"] else None
             nav_date = nav["dates"][-1] if nav["dates"] else f.get("nav_date", "")
             # 份额：模板显式 shares 优先；缺失则用 当前市值/最新净值 反推（份额不变，便于后续随净值自动更新）
@@ -606,6 +611,8 @@ def get_portfolio(force=False):
                        "pnl": grand - gcost, "pnl_pct": (grand - gcost) / gcost * 100,
                        "day_pnl": day_pnl},
         }
+    if force:                      # 手动刷新/进入程序：绕过组合缓存，强制重新拉取最新（含基金净值）
+        return build()
     return cache_get("portfolio", 30, build)
 
 # ---------- 核心市场指标 ----------
@@ -705,7 +712,7 @@ def fetch_bench_spark(kind, code, tries=3):
             time.sleep(0.6)
     return {"values": [], "dates": []}
 
-def fetch_cn_fund_nav(code, tries=3):
+def fetch_cn_fund_nav(code, tries=3, force=False):
     """人民币基金真实净值近 30 日序列（天天基金 pingzhongdata 接口）。
     返回 {"values": [净值...], "dates": ["YYYY-MM-DD"...]}（按日期升序，最近在末尾）。
     净值盘后公布，缓存 6 小时；失败时保留上次成功值兜底，避免偶发抽风导致长时间空白。"""
@@ -737,7 +744,7 @@ def fetch_cn_fund_nav(code, tries=3):
                 time.sleep(0.6)
         return None
     cached = _cache.get(key)
-    if cached and time.time() - cached[0] < 21600:
+    if cached and time.time() - cached[0] < 21600 and not force:
         return cached[1]
     val = build()
     if val is None:                       # 拉取失败 → 用旧缓存兜底，否则返回空
@@ -745,6 +752,57 @@ def fetch_cn_fund_nav(code, tries=3):
     with _lock:
         _cache[key] = (time.time(), val)
     return val
+
+def fetch_us_fund_nav(fund, force=False):
+    """美元场外基金最新 NAV：优先从官网产品页抓取（贝莱德已接，富兰克林/富达待补）；
+    失败或未配置 url 时返回 (None, None) 由调用方回退本地值。缓存 6h，force 时刷新。"""
+    url = fund.get("url")
+    isin = fund.get("code", "")
+    if not url:
+        return None, None
+    key = "us_fund_nav_" + isin
+    cached = _cache.get(key)
+    if cached and time.time() - cached[0] < 21600 and not force:
+        return cached[1], cached[2]
+    nav, date = _scrape_us_fund_nav(url, isin)
+    if nav is None:
+        return (cached[1], cached[2]) if cached else (None, None)
+    with _lock:
+        _cache[key] = (time.time(), nav, date)
+    return nav, date
+
+
+def _scrape_us_fund_nav(url, isin):
+    """实际抓取官网 NAV 表格。目前支持 blackrock.com（静态 HTML，ISIN 定位行）。"""
+    try:
+        raw = http_get(url, timeout=15, headers={"User-Agent": UA, "Accept-Language": "en"})
+    except Exception:
+        return None, None
+    html = raw.decode("utf-8", "ignore") if isinstance(raw, bytes) else raw
+    if "blackrock.com" in url:
+        idx = html.find(isin)
+        if idx == -1:
+            return None, None
+        idx2 = html.find(isin, idx + 1)
+        pos = idx2 if idx2 != -1 else idx
+        start = html.rfind("<tr", 0, pos)
+        end = html.find("</tr>", pos)
+        if start == -1 or end == -1:
+            return None, None
+        row = html[start:end]
+        m_nav = re.search(r'class="colNavAmount"[^>]*>(.*?)</td>', row, re.S)
+        m_date = re.search(r'class="colNavAsOfDate"[^>]*>(.*?)</td>', row, re.S)
+        if not m_nav or not m_date:
+            return None, None
+        try:
+            nav = float(re.sub(r"[^\d\.]", "", m_nav.group(1)))
+            dstr = re.sub(r"<[^>]+>", "", m_date.group(1)).strip().replace("Sept", "Sep")
+            dt = datetime.datetime.strptime(dstr, "%d/%b/%Y")
+            return nav, dt.strftime("%Y-%m-%d")
+        except Exception:
+            return None, None
+    return None, None
+
 
 def _intraday_qq(code, total_minutes):
     """腾讯当日分时（0930 起逐分钟增量）：返回 (pts, progress)；失败返回 (None, None)"""

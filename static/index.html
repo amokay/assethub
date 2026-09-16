@@ -2340,7 +2340,7 @@ applyI18nStatic();     // 应用语言（静态标题/占位），渲染函数�
 loadPortfolioMeta();   // 先渲染卡片框架（名称等静态信息），价格到齐后滚动填充
 loadKlines();          // 股票K线数据（hover 渐现用），后台拉取
 
-loadPortfolio();
+loadPortfolio(true);   // 进入程序即强制拉取最新（含基金净值，绕过缓存）
 loadMarkets();
 loadTicker();
 loadNewsByTag({ dataset: { k: '__all__' } });   // News 默认加载全部新闻
