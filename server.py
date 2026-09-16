@@ -517,17 +517,21 @@ def get_portfolio(force=False):
         funds_out = []
         for f in funds:
             cpn0 = f.get("cost_per_nav") or 0
-            fd = {"name": f.get("name", ""), "code": f.get("code", ""),
-                  "market_value": f.get("market_value", 0),
-                  "cost": f.get("cost", 0),
-                  "cost_per_nav": cpn0,
-                  # 份额：模板显式 shares 优先，否则按 cost/成本单价 推算
-                  "shares": f.get("shares") or
-                  (round(f.get("cost", 0) / cpn0, 2) if cpn0 else 0),
-                  "pnl": f.get("market_value", 0) - f.get("cost", 0)}
-            # 净值日涨幅（手动维护 nav_hist：{date: nav}，用于精确的"今日收益"）
+            shares = f.get("shares") or (round(f.get("cost", 0) / cpn0, 2) if cpn0 else 0)
+            # 最新 nav：优先 nav_hist 最新日（用户追加），否则用静态 nav 字段
             nh = f.get("nav_hist") or {}
             nh_dates = sorted(nh.keys())
+            nav_val = nh[nh_dates[-1]] if nh_dates else f.get("nav")
+            # 市值随 nav 联动：份额 × 最新 nav → 用户更新 nav/nav_hist 即自动重算，无需手填 market_value
+            mv0 = shares * nav_val if (shares and nav_val) else (f.get("market_value", 0) or 0)
+            fd = {"name": f.get("name", ""), "code": f.get("code", ""),
+                  "market_value": round(mv0, 2),
+                  "cost": f.get("cost", 0),
+                  "cost_per_nav": cpn0,
+                  "shares": shares,
+                  "nav": nav_val,
+                  "pnl": mv0 - f.get("cost", 0)}
+            # 净值日涨幅（手动维护 nav_hist：{date: nav}，用于精确的"今日收益"）
             if len(nh_dates) >= 2:
                 fd["day_pct"] = round((nh[nh_dates[-1]] / nh[nh_dates[-2]] - 1) * 100, 3)
                 fd["nav_date"] = nh_dates[-1]
@@ -540,22 +544,29 @@ def get_portfolio(force=False):
                     break
             funds_out.append(fd)
 
-        # 人民币基金（场外基金，按最近记录市值/收益率计价 + 天天基金真实净值走势）
+        # 人民币基金（场外基金）：市值 = 份额 × 天天基金最新净值 → 每日净值公布后自动更新，不再依赖模板静态值
         funds_cny_out = []
         for f in funds_cny:
-            mv0 = f.get("market_value", 0) or 0
             cost0 = f.get("cost", 0) or 0
+            mv_static = f.get("market_value", 0) or 0
+            nav = fetch_cn_fund_nav(f.get("code", ""))
+            latest = nav["values"][-1] if nav["values"] else None
+            nav_date = nav["dates"][-1] if nav["dates"] else f.get("nav_date", "")
+            # 份额：模板显式 shares 优先；缺失则用 当前市值/最新净值 反推（份额不变，便于后续随净值自动更新）
+            shares = f.get("shares") or (round(mv_static / latest, 4) if latest else 0)
+            mv0 = shares * latest if (latest and shares) else mv_static
             fc = {"name": f.get("name", ""), "code": f.get("code", ""),
-                  "market_value": mv0,
+                  "market_value": round(mv0, 2),
                   "cost": cost0,
                   "cost_per_nav": f.get("cost_per_nav", 0),
-                  "shares": f.get("shares") or 0,
+                  "shares": shares,
+                  "nav": latest,
+                  "nav_date": nav_date,
                   # 收益率实时计算（模板静态 yield_pct 会随成本/市值变化失真）
                   "yield_pct": round((mv0 - cost0) / cost0 * 100, 2) if cost0 > 0 else 0.0,
-                  "pnl": mv0 - cost0}
-            nav = fetch_cn_fund_nav(f.get("code", ""))
-            fc["spark"] = nav["values"]
-            fc["nav_dates"] = nav["dates"]
+                  "pnl": mv0 - cost0,
+                  "spark": nav["values"],
+                  "nav_dates": nav["dates"]}
             funds_cny_out.append(fc)
 
         # 个股涨跌幅阶梯推送（3%/5%/10%/15%...，随 30s 行情刷新检查）
@@ -697,9 +708,10 @@ def fetch_bench_spark(kind, code, tries=3):
 def fetch_cn_fund_nav(code, tries=3):
     """人民币基金真实净值近 30 日序列（天天基金 pingzhongdata 接口）。
     返回 {"values": [净值...], "dates": ["YYYY-MM-DD"...]}（按日期升序，最近在末尾）。
-    基金净值每天更新一次即可 → 缓存 1 天（86400s）"""
+    净值盘后公布，缓存 6 小时；失败时保留上次成功值兜底，避免偶发抽风导致长时间空白。"""
     if not code:
         return {"values": [], "dates": []}
+    key = "fund_nav_" + code
     def build():
         for attempt in range(tries):
             try:
@@ -709,11 +721,11 @@ def fetch_cn_fund_nav(code, tries=3):
                 raw = urlopen(req, timeout=12).read().decode("utf-8", "ignore")
                 m = re.search(r"var Data_netWorthTrend\s*=\s*(\[.*?\]);", raw, re.S)
                 if not m:
-                    return {"values": [], "dates": []}
+                    return None
                 data = json.loads(m.group(1))
                 pairs = [(d.get("x"), d.get("y")) for d in data if d.get("y")]
                 if not pairs:
-                    return {"values": [], "dates": []}
+                    return None
                 pairs = pairs[-30:]
                 values = [float(y) for _, y in pairs]
                 dates = [datetime.datetime.utcfromtimestamp(x / 1000).strftime("%Y-%m-%d")
@@ -723,9 +735,16 @@ def fetch_cn_fund_nav(code, tries=3):
                 pass
             if attempt < tries - 1:
                 time.sleep(0.6)
-        return {"values": [], "dates": []}
-    # 缓存 6 小时：净值盘后公布，1 天缓存会让用户看到的净值滞后 ≥1 天
-    return cache_get("fund_nav_" + code, 21600, build)
+        return None
+    cached = _cache.get(key)
+    if cached and time.time() - cached[0] < 21600:
+        return cached[1]
+    val = build()
+    if val is None:                       # 拉取失败 → 用旧缓存兜底，否则返回空
+        return cached[1] if cached else {"values": [], "dates": []}
+    with _lock:
+        _cache[key] = (time.time(), val)
+    return val
 
 def _intraday_qq(code, total_minutes):
     """腾讯当日分时（0930 起逐分钟增量）：返回 (pts, progress)；失败返回 (None, None)"""
