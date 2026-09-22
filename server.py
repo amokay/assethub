@@ -754,22 +754,57 @@ def fetch_cn_fund_nav(code, tries=3, force=False):
     return val
 
 def fetch_us_fund_nav(fund, force=False):
-    """美元场外基金最新 NAV：优先从官网产品页抓取（贝莱德已接，富兰克林/富达待补）；
-    失败或未配置 url 时返回 (None, None) 由调用方回退本地值。缓存 6h，force 时刷新。"""
-    url = fund.get("url")
+    """美元场外基金最新 NAV：策略1 贝莱德官网(显式 url)；策略2 按 ISIN 从 Financial Times
+    静态页抓取(覆盖富兰克林/富达/贝莱德等)。失败或未配置时返回 (None, None) 由调用方
+    回退本地值。缓存 6h，force 时刷新。"""
     isin = fund.get("code", "")
-    if not url:
-        return None, None
     key = "us_fund_nav_" + isin
     cached = _cache.get(key)
     if cached and time.time() - cached[0] < 21600 and not force:
         return cached[1], cached[2]
-    nav, date = _scrape_us_fund_nav(url, isin)
+    nav = date = None
+    url = fund.get("url")
+    if url and "blackrock.com" in url:
+        nav, date = _scrape_us_fund_nav(url, isin)
+    if nav is None and isin:
+        nav, date = _scrape_ft_fund_nav(isin)
     if nav is None:
         return (cached[1], cached[2]) if cached else (None, None)
     with _lock:
         _cache[key] = (time.time(), nav, date)
     return nav, date
+
+
+def _scrape_ft_fund_nav(isin, tries=3):
+    """Financial Times 基金摘要页(静态 HTML)：按 ISIN 拼 URL，解析 Price(USD) 与 as of 日期。
+    覆盖大多数 UCITS 场外基金(富兰克林/富达等)，无需 JS 渲染。"""
+    url = "https://markets.ft.com/data/funds/tearsheet/summary?s=%s:USD" % isin
+    html = None
+    for attempt in range(tries):
+        try:
+            raw = http_get(url, timeout=20, headers={"User-Agent": UA, "Accept-Language": "en"})
+            html = raw.decode("utf-8", "ignore") if isinstance(raw, bytes) else raw
+            break
+        except Exception:
+            if attempt < tries - 1:
+                time.sleep(0.8)
+    if not html:
+        return None, None
+    m = re.search(r'Price\s*\(USD\)</span><span class="mod-ui-data-list__value">([\d,]+\.\d+)', html)
+    if not m:
+        return None, None
+    try:
+        nav = float(m.group(1).replace(",", ""))
+    except Exception:
+        return None, None
+    d = re.search(r'as of ([A-Za-z]{3} \d{1,2},? \d{4})', html)
+    if not d:
+        return None, None
+    try:
+        dt = datetime.datetime.strptime(d.group(1), "%b %d %Y")
+        return nav, dt.strftime("%Y-%m-%d")
+    except Exception:
+        return None, None
 
 
 def _scrape_us_fund_nav(url, isin):
