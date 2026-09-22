@@ -778,7 +778,7 @@ def fetch_us_fund_nav(fund, force=False):
     return nav, date
 
 
-def _scrape_ft_fund_nav(isin, tries=3):
+def _scrape_ft_fund_nav(isin, tries=8):
     """Financial Times 基金摘要页(静态 HTML)：按 ISIN 拼 URL，解析 Price(USD) 与 as of 日期。
     覆盖大多数 UCITS 场外基金(富兰克林/富达等)，无需 JS 渲染。"""
     url = "https://markets.ft.com/data/funds/tearsheet/summary?s=%s:USD" % isin
@@ -790,7 +790,7 @@ def _scrape_ft_fund_nav(isin, tries=3):
             break
         except Exception:
             if attempt < tries - 1:
-                time.sleep(0.8)
+                time.sleep(2.0)
     if not html:
         return None, None
     m = re.search(r'Price\s*\(USD\)</span><span class="mod-ui-data-list__value">([\d,]+\.\d+)', html)
