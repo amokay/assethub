@@ -535,11 +535,15 @@ def get_portfolio(force=False):
                   "nav": nav_val,
                   "nav_date": nav_date,
                   "pnl": mv0 - f.get("cost", 0)}
-            # 净值日涨幅（nav_date 较前一交易日）
-            if len(nh_dates) >= 2 and nav_date in nh_dates:
-                i = nh_dates.index(nav_date)
-                if i >= 1:
-                    fd["day_pct"] = round((nh[nav_date] / nh[nh_dates[i - 1]] - 1) * 100, 3)
+            # 净值日涨幅：统一取 nav_hist 最近两个净值日（ds[-1] vs ds[-2]），
+            # 并把本次抓到的最新净值并入历史，确保「取最近的日期」——
+            # 不再要求实时 nav_date 命中手填历史（否则常因不匹配而取不到、显示 '—'）。
+            _nh = dict(f.get("nav_hist") or {})
+            if nav_val is not None and nav_date:
+                _nh[nav_date] = nav_val
+            _nh_dates = sorted(_nh.keys())
+            if len(_nh_dates) >= 2 and _nh.get(_nh_dates[-2]):
+                fd["day_pct"] = round((_nh[_nh_dates[-1]] / _nh[_nh_dates[-2]] - 1) * 100, 3)
             for b in FUND_BENCH:
                 if b[0] in f.get("name", ""):
                     bsp = fetch_bench_spark(b[2], b[3])
