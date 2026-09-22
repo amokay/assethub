@@ -757,6 +757,9 @@ def fetch_us_fund_nav(fund, force=False):
     """美元场外基金最新 NAV：策略1 贝莱德官网(显式 url)；策略2 按 ISIN 从 Financial Times
     静态页抓取(覆盖富兰克林/富达/贝莱德等)。失败或未配置时返回 (None, None) 由调用方
     回退本地值。缓存 6h，force 时刷新。"""
+    # 本地净值优先：标记 nav_source=='local' 的基金(如富兰克林)不抓取，直接用配置净值
+    if fund.get("nav_source") == "local":
+        return fund.get("nav"), fund.get("nav_date")
     isin = fund.get("code", "")
     key = "us_fund_nav_" + isin
     cached = _cache.get(key)
