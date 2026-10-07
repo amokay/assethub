@@ -95,6 +95,62 @@ FUND_SECTOR = [
 RADAR_AXES = ["半导体", "科技互联网", "科技硬件", "汽车新能源", "军工航天", "公用事业", "金融价值"]
 
 _cache = {}
+_tpl_write_lock = threading.Lock()
+
+def persist_nav_history(section, code, pairs, latest=400):
+    """把成功抓到的净值写回 data/portfolio.json 的 nav_hist（原子写、最多保留 latest 条）。
+
+    目的：① 净值源间歇性失败时，回退值是上一次「真实抓到的」最新净值及其日期，
+    而不是几周前的手填旧值（此前富兰克林卡在 09-22 的根因）；
+    ② 日涨跌基于最近两个真实净值日，历史逐日累积后不再是跨周的大跨步百分比。
+    pairs: [(date, nav), ...]；写入失败不影响主流程。"""
+    pairs = [(str(d), n) for d, n in (pairs or []) if d and n]
+    if not pairs:
+        return False
+    try:
+        with _tpl_write_lock:
+            with open(TEMPLATE) as fp:
+                tpl = json.load(fp)
+            changed = False
+            for f in tpl.get(section, []):
+                if str(f.get("code", "")) == str(code):
+                    nh = f.get("nav_hist") or {}
+                    for d, n in pairs:
+                        nv = round(float(n), 4)
+                        if nh.get(d) != nv:
+                            nh[d] = nv
+                            changed = True
+                    if nh:
+                        for d in sorted(nh.keys())[:-latest]:
+                            nh.pop(d, None)
+                        mx = max(nh.keys())
+                        f["nav_hist"] = nh
+                        if f.get("nav_date") != mx:
+                            f["nav_date"] = mx
+                            f["nav"] = nh[mx]
+                            changed = True
+                    break
+            if changed:
+                tmp = TEMPLATE + ".tmp-write"
+                with open(tmp, "w") as fp:
+                    json.dump(tpl, fp, ensure_ascii=False, indent=2)
+                os.replace(tmp, TEMPLATE)
+        return changed
+    except Exception as e:
+        try:
+            print("[persist_nav_history] failed:", repr(e)[:200])
+        except Exception:
+            pass
+        return False
+
+def nav_stale_days(nav_date):
+    """净值日距今的自然天数；无日期或格式异常返回 None"""
+    try:
+        d = datetime.datetime.strptime(str(nav_date)[:10], "%Y-%m-%d")
+        return (datetime.datetime.now() - d).days
+    except Exception:
+        return None
+
 _lock = threading.Lock()
 
 def norm_code(code):
@@ -520,6 +576,9 @@ def get_portfolio(force=False):
             shares = f.get("shares") or (round(f.get("cost", 0) / cpn0, 2) if cpn0 else 0)
             # 最新 nav：优先官网实时抓取（贝莱德已接，force 刷新，缓存 6h），失败回退本地 nav_hist/静态 nav
             nav_val, nav_date = fetch_us_fund_nav(f, force=force)
+            if nav_val is not None and nav_date:
+                # 抓到即写回历史：源抖动时回退值是上一次真实净值，而非几周前的旧值
+                persist_nav_history("funds", f.get("code", ""), [(nav_date, nav_val)])
             nh = f.get("nav_hist") or {}
             nh_dates = sorted(nh.keys())
             if nav_val is None:
@@ -534,6 +593,7 @@ def get_portfolio(force=False):
                   "shares": shares,
                   "nav": nav_val,
                   "nav_date": nav_date,
+                  "nav_stale": (nav_stale_days(nav_date) or 0) > 5,
                   "pnl": mv0 - f.get("cost", 0)}
             # 净值日涨幅：统一取 nav_hist 最近两个净值日（ds[-1] vs ds[-2]），
             # 并把本次抓到的最新净值并入历史，确保「取最近的日期」——
@@ -561,8 +621,17 @@ def get_portfolio(force=False):
             nav = fetch_cn_fund_nav(f.get("code", ""), force=force)
             latest = nav["values"][-1] if nav["values"] else None
             nav_date = nav["dates"][-1] if nav["dates"] else f.get("nav_date", "")
-            # 份额：模板显式 shares 优先；缺失则用 当前市值/最新净值 反推（份额不变，便于后续随净值自动更新）
-            shares = f.get("shares") or (round(mv_static / latest, 4) if latest else 0)
+            # 天天基金返回整段净值序列：直接落库，历史不被源抖动打断
+            if nav["values"] and nav["dates"]:
+                persist_nav_history("funds_cny", f.get("code", ""),
+                                    list(zip(nav["dates"], nav["values"])))
+            # 份额：模板显式 shares 优先；缺失则用 成本/成本净值 反推（份额不变，便于随净值自动更新）；
+            # 仅在两者皆缺时回退 当前市值/最新净值，避免循环推导把市值冻结在陈旧模板值上
+            shares = f.get("shares")
+            if not shares and f.get("cost_per_nav"):
+                shares = round(cost0 / f.get("cost_per_nav"), 4)
+            if not shares and latest:
+                shares = round(mv_static / latest, 4)
             mv0 = shares * latest if (latest and shares) else mv_static
             fc = {"name": f.get("name", ""), "code": f.get("code", ""),
                   "market_value": round(mv0, 2),
@@ -571,6 +640,7 @@ def get_portfolio(force=False):
                   "shares": shares,
                   "nav": latest,
                   "nav_date": nav_date,
+                  "nav_stale": (nav_stale_days(nav_date) or 0) > 5,
                   # 收益率实时计算（模板静态 yield_pct 会随成本/市值变化失真）
                   "yield_pct": round((mv0 - cost0) / cost0 * 100, 2) if cost0 > 0 else 0.0,
                   "pnl": mv0 - cost0,
@@ -782,19 +852,21 @@ def fetch_us_fund_nav(fund, force=False):
     return nav, date
 
 
-def _scrape_ft_fund_nav(isin, tries=8):
+def _scrape_ft_fund_nav(isin, tries=2):
     """Financial Times 基金摘要页(静态 HTML)：按 ISIN 拼 URL，解析 Price(USD) 与 as of 日期。
-    覆盖大多数 UCITS 场外基金(富兰克林/富达等)，无需 JS 渲染。"""
+    覆盖大多数 UCITS 场外基金(富兰克林/富达等)，无需 JS 渲染。
+    注：FT 偶对本机 IP 直接 ConnectionReset(全员失败)，重试次数刻意压到 2 次，
+    避免源不可达时把刷新请求拖到几十秒——取不到时由 nav_hist 里上一次真实净值兜底。"""
     url = "https://markets.ft.com/data/funds/tearsheet/summary?s=%s:USD" % isin
     html = None
     for attempt in range(tries):
         try:
-            raw = http_get(url, timeout=20, headers={"User-Agent": UA, "Accept-Language": "en"})
+            raw = http_get(url, timeout=12, headers={"User-Agent": UA, "Accept-Language": "en"})
             html = raw.decode("utf-8", "ignore") if isinstance(raw, bytes) else raw
             break
         except Exception:
             if attempt < tries - 1:
-                time.sleep(2.0)
+                time.sleep(1.0)
     if not html:
         return None, None
     m = re.search(r'Price\s*\(USD\)</span><span class="mod-ui-data-list__value">([\d,]+\.\d+)', html)
@@ -812,6 +884,76 @@ def _scrape_ft_fund_nav(isin, tries=8):
         return nav, dt.strftime("%Y-%m-%d")
     except Exception:
         return None, None
+
+
+def _scrape_ft_fund_nav_diag(isin, tries=3):
+    """诊断版：与 _scrape_ft_fund_nav 同源，返回逐次尝试的明细（供 /api/nav_debug 排查）。"""
+    url = "https://markets.ft.com/data/funds/tearsheet/summary?s=%s:USD" % isin
+    out = {"url": url, "attempts": [], "ok": False}
+    html = None
+    for i in range(tries):
+        try:
+            raw = http_get(url, timeout=20, headers={"User-Agent": UA, "Accept-Language": "en"})
+            html = raw.decode("utf-8", "ignore") if isinstance(raw, bytes) else raw
+            out["attempts"].append({"i": i, "ok": True, "len": len(html)})
+            break
+        except Exception as e:
+            out["attempts"].append({"i": i, "ok": False, "err": repr(e)[:160]})
+            if i < tries - 1:
+                time.sleep(1.0)
+    if not html:
+        out["stage"] = "fetch_failed"
+        return out
+    if "cf-browser-verification" in html or "Just a moment" in html:
+        out["stage"] = "cloudflare_challenge"
+        return out
+    m = re.search(r'Price\s*\(USD\)</span><span class="mod-ui-data-list__value">([\d,]+\.\d+)', html)
+    out["price_regex_match"] = bool(m)
+    if not m:
+        # 友好兜底：页面可能是其他价格标签，记录真实片段便于分析
+        alt = re.findall(r'(Price\s*\([A-Z]{3}\))[\s\S]{0,160}', html)[:3]
+        out["alts"] = [re.sub(r"\s+", " ", a)[:160] for a in alt]
+        out["stage"] = "parse_price_failed"
+        return out
+    d = re.search(r'as of ([A-Za-z]{3} \d{1,2},? \d{4})', html)
+    out["date_regex_match"] = bool(d)
+    if not d:
+        out["stage"] = "parse_date_failed"
+        return out
+    try:
+        out["nav"] = float(m.group(1).replace(",", ""))
+        out["date"] = datetime.datetime.strptime(d.group(1), "%b %d %Y").strftime("%Y-%m-%d")
+        out["ok"] = True
+        out["stage"] = "ok"
+    except Exception as e:
+        out["stage"] = "convert_failed"
+        out["err"] = repr(e)[:160]
+    return out
+
+
+def _diag_nav_sources():
+    """遍历持仓基金，逐个尝试各数据源并回报明细（在 server 进程网络环境下执行）。"""
+    tpl = {}
+    try:
+        with open(TEMPLATE) as fp:
+            tpl = json.load(fp)
+    except Exception as e:
+        return {"error": repr(e)}
+    res = []
+    for f in tpl.get("funds", []):
+        item = {"code": f.get("code"), "name": f.get("name"), "nav_source": f.get("nav_source")}
+        item["ft"] = _scrape_ft_fund_nav_diag(f.get("code", ""))
+        if f.get("url"):
+            item["official_url"] = f.get("url")
+            try:
+                n, d = _scrape_us_fund_nav(f.get("url"), f.get("code", ""))
+                item["official"] = {"nav": n, "date": d, "ok": n is not None}
+            except Exception as e:
+                item["official"] = {"ok": False, "err": repr(e)[:200]}
+        res.append(item)
+    return {"funds": res,
+            "proxy_env": {k: (os.environ.get(k) or "")[:60] for k in
+                          ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy", "ALL_PROXY", "all_proxy")}}
 
 
 def _scrape_us_fund_nav(url, isin):
@@ -1934,6 +2076,36 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(get_heatmap())
             elif path == "/api/kline":
                 self._json(get_stock_klines())
+            elif path == "/api/http_probe":
+                # 排查网络可达性：在 server 进程网络环境下抓取指定 URL，回状态码/长度/片段
+                from urllib.parse import urlparse as _up, parse_qs as _pq
+                q2 = _pq(_up(self.path).query)
+                u = (q2.get("u") or [""])[0]
+                kw = (q2.get("grep") or [""])[0]
+                if not (u.startswith("http://") or u.startswith("https://")):
+                    self._json({"error": "bad url"}, 400)
+                else:
+                    out = {"url": u}
+                    try:
+                        raw = http_get(u, timeout=20,
+                                       headers={"Accept-Language": "en",
+                                                "Accept": "text/html,application/json"})
+                        html = raw.decode("utf-8", "ignore") if isinstance(raw, bytes) else str(raw)
+                        out.update({"ok": True, "len": len(html), "head": html[:300]})
+                        hits = re.findall(r'(\d{2,4}\.\d{2,4})', html[:60000])[:12]
+                        out["num_hits"] = hits
+                        if kw:
+                            ctx = []
+                            for m in list(re.finditer(re.escape(kw), html))[:3]:
+                                ctx.append(re.sub(r"\s+", " ",
+                                                  html[max(0, m.start() - 300):m.start() + 300]))
+                            out["grep"] = {"kw": kw, "count": html.count(kw), "ctx": ctx}
+                    except Exception as e:
+                        out.update({"ok": False, "err": repr(e)[:200]})
+                    self._json(out)
+            elif path == "/api/nav_debug":
+                # 排查基金净值源：在 server 进程网络环境下逐源尝试并回报明细
+                self._json(_diag_nav_sources())
             elif path == "/api/news":
                 from urllib.parse import urlparse, parse_qs
                 q = parse_qs(urlparse(self.path).query)
