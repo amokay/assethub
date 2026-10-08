@@ -230,7 +230,8 @@
   .card .icon.session { border: none; background: none; padding: 0; border-radius: 0; }
   .card .code { font-size: 18px; font-weight: 700; letter-spacing: .3px; margin-bottom: 2px;
                 color: #fff; }
-  .card .name { font-size: 12px; color: var(--muted); margin-top: 1px; margin-bottom: 10px; }
+  .card .name { font-size: 12px; color: var(--muted); margin-top: 1px; margin-bottom: 10px;
+                display: flex; align-items: center; gap: 6px; }
   .card .price { font-size: clamp(20px, 2.6vw, 30px); font-weight: 700;
                  font-variant-numeric: tabular-nums; }
 
@@ -670,8 +671,8 @@
 
   .pulse { animation: pulse .8s ease; }
   @keyframes pulse { 0% { opacity: .6; } 100% { opacity: 1; } }  /* ==================== 观察池 ==================== */
-  .wl-btn { float: right; margin-left: 6px; opacity: .3; cursor: pointer; line-height: 1;
-            transition: opacity .15s; display: inline-flex; }
+  .wl-btn { margin-left: auto; opacity: .3; cursor: pointer; line-height: 1;
+            transition: opacity .15s; display: inline-flex; align-items: center; }
   .wl-btn:hover { opacity: .8; }
   .wl-btn.on { opacity: 1; color: var(--accent); }
   .wl-btn svg { display: block; width: 13px; height: 13px; }
