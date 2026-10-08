@@ -669,7 +669,32 @@
   .toast.show { opacity: 1; }
 
   .pulse { animation: pulse .8s ease; }
-  @keyframes pulse { 0% { opacity: .6; } 100% { opacity: 1; } }
+  @keyframes pulse { 0% { opacity: .6; } 100% { opacity: 1; } }  /* ==================== 观察池 ==================== */
+  .wl-btn { float: right; margin-left: 6px; opacity: .3; cursor: pointer; line-height: 1;
+            transition: opacity .15s; display: inline-flex; }
+  .wl-btn:hover { opacity: .8; }
+  .wl-btn.on { opacity: 1; color: var(--accent); }
+  .wl-btn svg { display: block; width: 13px; height: 13px; }
+  .wl-pill { font-size: 10.5px; padding: 2px 7px; border-radius: 8px;
+             border: 1px solid var(--border); color: var(--muted); white-space: nowrap; }
+  .wl-pill.up   { color: var(--up);   border-color: var(--up);   }
+  .wl-pill.down { color: var(--down); border-color: var(--down); }
+  .wl-pill.warn { color: #ff9f0a; border-color: #ff9f0a; }
+  .wl-empty { color: var(--muted); font-size: 12.5px; padding: 12px 4px; }
+  /* ---------- 个股详情浮层（结构同热力图 hm-mask） ---------- */
+  .sd-body { flex: 1; overflow: auto; padding: 2px 2px 10px; min-height: 0; }
+  .sd-price { display: flex; align-items: baseline; gap: 10px; padding: 4px 2px 8px; flex-wrap: wrap; }
+  .sd-price .p { font-size: 26px; font-weight: 700; letter-spacing: -.4px; }
+  .sd-price .chg { font-size: 14px; font-weight: 600; }
+  .sd-price .sess { font-size: 11.5px; color: var(--muted); }
+  .sd-price .prev { font-size: 11.5px; color: var(--muted); }
+  .sd-chart { border: 1px solid var(--border); border-radius: 10px; padding: 10px 8px 4px;
+              background: rgba(255,255,255,.02); }
+  .sd-chart svg { width: 100%; height: auto; display: block; }
+  .sd-stats { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 10px 2px; }
+  .sd-stats .st { font-size: 11.5px; color: var(--muted); border: 1px solid var(--border);
+                  border-radius: 8px; padding: 3px 9px; white-space: nowrap; }
+  .sd-stats .st b { color: var(--text); font-weight: 500; }
 </style>
 </head>
 <body>
@@ -763,6 +788,7 @@
       </section>
     </div>
 
+
     <section>
       <div class="sec-head"><h2 data-i18n="preference">投资偏好</h2></div>
       <div class="pref-group" id="pref-group-us">
@@ -839,6 +865,20 @@
   <div class="hm-stage" id="hm-stage"></div>
 </div>
 <div class="hm-pop" id="hm-pop"></div>
+<!-- 个股详情浮层：5分钟K线 + BOLL，结构同热力图浮层 -->
+<div class="hm-mask" id="sd-mask">
+  <div class="hm-head">
+    <div class="hm-title" id="sd-title"></div>
+    <button class="refresh hm-refresh" onclick="sdRefresh(event)">
+      <span data-i18n="refresh">刷新</span>
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>
+    </button>
+    <button class="hm-close" onclick="closeStockDetail()" aria-label="close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="sd-body" id="sd-body"><div class="wl-empty">加载中…</div></div>
+</div>
 <div class="modal-mask" id="add-modal" onclick="if(event.target===this)closeAddModal()">
   <div class="modal">
     <h3 data-i18n="add_stock">手动添加持仓</h3>
@@ -1462,7 +1502,7 @@ function renderFrames(meta) {
           <div class="card front">
             <div class="top"></div>
             <div class="code">${s.code.replace(/^(sh|sz|bj)/, '')}</div>
-            <div class="name">${stkName(s)}</div>
+            <div class="name">${stkName(s)}${sdBtn(s.code)}</div>
             <div class="price" data-flip="${s.code}" data-px="--" style="color:var(--muted)">--</div>
             <div class="change"><span class="session">${_t('loading')}</span></div>
             <div class="front-kline" data-kline="${s.code}"></div>
@@ -1530,7 +1570,7 @@ async function loadPortfolio(force) {
       : `<div class="card front ${c}">
           <div class="top"><span class="icon session">${sessTxt(s.session.text)}</span></div>
           <div class="code">${s.code}</div>
-          <div class="name">${stkName(s)}</div>
+          <div class="name">${stkName(s)}${sdBtn(s.code)}</div>
           <div class="price ${c}" data-flip="${s.code}" data-px="${fmt(s.price)}">${fmt(s.price)}</div>
           <div class="change ${c}">
             <span>${fmtPct(s.chg_pct)}</span>
@@ -2337,6 +2377,146 @@ function loadMarketNewsIfActive() {
 }
 
 applyI18nStatic();     // 应用语言（静态标题/占位），渲染函数内部用 _t() 取词
+/* ==================== 观察池 ==================== */
+let watchData = null;
+
+const WL_EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M7 3.5v3.5M7 15v4.5M17 3v5M17 16.5v4"/><rect x="4.5" y="7" width="5" height="8" rx="0.5"/><rect x="14.5" y="8" width="5" height="8" rx="0.5"/></svg>';
+function sdBtn(code) {
+  return `<span class="wl-btn" data-sd="${code}" title="个股详情（5分钟K线 + BOLL）" onclick="openStockDetail(event,'${code}')">${WL_EYE}</span>`;
+}
+
+/* ---------- 个股详情浮层（5分钟K + BOLL，结构同热力图） ---------- */
+let sdCode = null;
+const SD_SESS = { pre: '盘前', after: '盘后', night: '夜盘', regular: '盘中' };
+
+async function openStockDetail(ev, code) {
+  if (ev) ev.stopPropagation();
+  sdCode = code;
+  $('sd-body').innerHTML = '<div class="wl-empty">加载中…</div>';
+  $('sd-mask').classList.add('open');
+  await sdLoad();
+}
+function closeStockDetail() { $('sd-mask').classList.remove('open'); sdCode = null; }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeStockDetail(); });
+
+async function sdRefresh(ev) {
+  const btn = ev && ev.currentTarget;
+  if (btn) { btn.classList.remove('spinning'); void btn.offsetWidth; btn.classList.add('spinning');
+             btn.addEventListener('animationend', () => btn.classList.remove('spinning'), { once: true }); }
+  if (sdCode) await sdLoad();
+}
+async function sdLoad() {
+  try {
+    const d = await api('/api/stock_detail?code=' + encodeURIComponent(sdCode));
+    sdRender(d);
+  } catch (e) {
+    $('sd-body').innerHTML = '<div class="wl-empty">加载失败：' + esc(String(e.message || e)) + '</div>';
+  }
+}
+
+function sdChartSVG(d) {
+  const k5 = d.k5 || [], bo = d.boll || {};
+  if (!k5.length) return '<div class="wl-empty">暂无分时数据</div>';
+  const W = 1000, padL = 10, padR = 58, top = 8;
+  const hasV = k5.some(b => b.hasv);
+  const H = hasV ? 384 : 330, priceH = hasV ? 268 : 296;
+  const volTop = hasV ? 296 : 0, volH = hasV ? 62 : 0;
+  const n = k5.length;
+  const step = (W - padL - padR) / n;
+  let lo = Infinity, hi = -Infinity;
+  k5.forEach(b => { lo = Math.min(lo, b.l); hi = Math.max(hi, b.h); });
+  (bo.up || []).forEach(v => { if (v != null) hi = Math.max(hi, v); });
+  (bo.lo || []).forEach(v => { if (v != null) lo = Math.min(lo, v); });
+  const span = (hi - lo) || 1;
+  lo -= span * 0.05; hi += span * 0.05;
+  const Y = p => top + (hi - p) / (hi - lo) * priceH;
+  const X = i => padL + step * (i + 0.5);
+  const bw = Math.max(1.5, step * 0.62);
+  let s = '';
+  for (let g = 0; g <= 4; g++) {
+    const gp = lo + (hi - lo) * g / 4, gy = Y(gp);
+    s += `<line x1="${padL}" y1="${gy}" x2="${W - padR}" y2="${gy}" stroke="rgba(255,255,255,.06)" stroke-width="1"/>`;
+    s += `<text x="${W - padR + 8}" y="${gy + 3.5}" font-size="10" fill="#8e8e93">${gp.toFixed(2)}</text>`;
+  }
+  const path = arr => {
+    let d2 = '', st = false;
+    (arr || []).forEach((v, i) => {
+      if (v == null) return;
+      d2 += (st ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(v).toFixed(1) + ' ';
+      st = true;
+    });
+    return d2 ? `<path d="${d2}" fill="none" stroke="#d2a04a" stroke-width="1.1" opacity="0.9"/>` : '';
+  };
+  s += path(bo.up); s += path(bo.lo);
+  s += (bo.mid || []).length ? (() => {
+    let d2 = '', st = false;
+    bo.mid.forEach((v, i) => {
+      if (v == null) return;
+      d2 += (st ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(v).toFixed(1) + ' ';
+      st = true;
+    });
+    return d2 ? `<path d="${d2}" fill="none" stroke="var(--accent)" stroke-width="1.2" opacity="0.95"/>` : '';
+  })() : '';
+  k5.forEach((b, i) => {
+    const up = b.c >= b.o;
+    const col = up ? 'var(--up)' : 'var(--down)';
+    const cx = X(i).toFixed(1);
+    s += `<line x1="${cx}" y1="${Y(b.h).toFixed(1)}" x2="${cx}" y2="${Y(b.l).toFixed(1)}" stroke="${col}" stroke-width="1"/>`;
+    const yT = Y(Math.max(b.o, b.c)), yB = Y(Math.min(b.o, b.c));
+    s += `<rect x="${(X(i) - bw / 2).toFixed(1)}" y="${yT.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1, yB - yT).toFixed(1)}" fill="${col}"${up ? ' fill-opacity="0.85"' : ''}/>`;
+  });
+  if (hasV) {
+    let vmax = 0; k5.forEach(b => vmax = Math.max(vmax, b.v || 0));
+    const vy0 = volTop + volH;
+    s += `<line x1="${padL}" y1="${vy0}" x2="${W - padR}" y2="${vy0}" stroke="rgba(255,255,255,.06)" stroke-width="1"/>`;
+    k5.forEach((b, i) => {
+      const vh = vmax ? (b.v || 0) / vmax * volH : 0;
+      if (vh <= 0) return;
+      const col = b.c >= b.o ? 'var(--up)' : 'var(--down)';
+      s += `<rect x="${(X(i) - bw / 2).toFixed(1)}" y="${(vy0 - vh).toFixed(1)}" width="${bw.toFixed(1)}" height="${vh.toFixed(1)}" fill="${col}" fill-opacity="0.5"/>`;
+    });
+    s += `<text x="${W - padR + 8}" y="${vy0 + 3.5}" font-size="9" fill="#8e8e93">量</text>`;
+  }
+  [0, 0.25, 0.5, 0.75, 1].forEach(fr => {
+    const i = Math.min(n - 1, Math.round(fr * (n - 1)));
+    s += `<text x="${X(i)}" y="${H - 2}" font-size="10" fill="#8e8e93" text-anchor="middle">${k5[i].t}</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${s}</svg>`;
+}
+
+function sdRender(d) {
+  const body = $('sd-body');
+  if (d.error || !d.code) { body.innerHTML = '<div class="wl-empty">' + esc(d.error || '数据异常') + '</div>'; return; }
+  const c = d.chg_pct == null ? '' : cls(d.chg_pct);
+  const sess = d.session ? (SD_SESS[d.session] || d.session) + '｜' : '';
+  $('sd-title').innerHTML =
+    `<span>${esc(d.name || d.code)} <span style="color:var(--muted);font-weight:500;font-size:14px">${d.code}</span></span>` +
+    `<span class="hm-t-sub"><span class="cnt">${sess}更新于 ${d.ts || '--'}` +
+    `${(d.above != null || d.below != null) ? '｜观察位 ↑' + (d.above ?? '—') + ' ↓' + (d.below ?? '—') : ''}</span></span>`;
+  const st = d.stats || {};
+  const pills = (d.signals || []).map(x => `<span class="wl-pill ${x.tone}">${x.txt}</span>`).join('');
+  const pos = st.pos === 'multi' ? '多头' : (st.pos === 'short' ? '空头' : '');
+  const fmt2 = v => v == null ? '—' : Number(v).toFixed(2);
+  const stats =
+    `<div class="sd-stats">` +
+    `<span class="st">MA5 <b>${fmt2(st.ma5)}</b></span>` +
+    `<span class="st">MA20 <b>${fmt2(st.ma20)}</b></span>` +
+    `<span class="st">MA60 <b>${fmt2(st.ma60)}</b>${pos ? ' <b>' + pos + '</b>' : ''}</span>` +
+    `<span class="st">52周 <b>${fmt2(st.lo52)} ~ ${fmt2(st.hi52)}</b></span>` +
+    (st.vol_ratio != null ? `<span class="st">量比 <b>${st.vol_ratio}</b></span>` : '') +
+    (d.prev_close != null ? `<span class="st">昨收 <b>${fmt2(d.prev_close)}</b></span>` : '') +
+    pills +
+    `</div>`;
+  body.innerHTML =
+    `<div class="sd-price">` +
+    `<span class="p ${c}">${fmt(d.price)}</span>` +
+    (d.chg_pct != null ? `<span class="chg ${c}">${fmtPct(d.chg_pct)}</span>` : '') +
+    `<span class="prev">5分钟K · BOLL(20,2)</span>` +
+    `</div>` +
+    `<div class="sd-chart">${sdChartSVG(d)}</div>` +
+    stats;
+}
+
 loadPortfolioMeta();   // 先渲染卡片框架（名称等静态信息），价格到齐后滚动填充
 loadKlines();          // 股票K线数据（hover 渐现用），后台拉取
 

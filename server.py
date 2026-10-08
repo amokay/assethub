@@ -1635,6 +1635,327 @@ def get_stock_klines():
         return out
     return cache_get("stock_klines", 60, build)
 
+# ---------- 观察池（watchlist）：非持仓标的盯盘 + 关键位提醒 ----------
+
+_wl_kline_cache = {}          # code -> (kline_data, ts)，缓存 10 分钟
+_wl_alert_state = {"date": "", "fired": {}}   # 关键位触发去重（每码每方向每日一次）
+
+def _wl_daily_kline(c, days=320):
+    """日线（前复权）→ closes/vols；供 MA / 52周高低 / 量比计算。
+    A股：腾讯 fqkline（qfqday，含量）；美股：Nasdaq 官方 1 年日线（仅收盘价，无量，
+    放量信号对美股自动跳过）。东财 push2his 对 urllib 断连，不可用。"""
+    import time as _t
+    v = _wl_kline_cache.get(c)
+    if v and _t.time() - v[1] < 600:
+        return v[0]
+    closes, vols, highs = [], [], []
+    try:
+        if c[:2] in ("sh", "sz", "bj", "hk"):
+            url = ("https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=%s,day,,,%d,qfq"
+                   % (c, days))
+            d = json.loads(http_get(url, timeout=12, headers={"User-Agent": UA}))
+            data = (d.get("data") or {}).get(c) or {}
+            rows = data.get("qfqday") or data.get("day") or []
+            for r in rows:
+                if len(r) >= 5:
+                    try:
+                        closes.append(float(r[2]))
+                        highs.append(float(r[3]))
+                    except (TypeError, ValueError):
+                        continue
+                if len(r) >= 6:
+                    try:
+                        vols.append(float(r[5]))
+                    except (TypeError, ValueError):
+                        pass
+        else:
+            # 美股：Nasdaq 官方 historical 日线表（OHLCV 齐全）。东财 push2his 对 urllib
+            # 直接 RemoteDisconnected（TLS 指纹级封锁），本机不可用。
+            hdr = {"User-Agent": UA, "Accept": "application/json, text/plain, */*",
+                   "Origin": "https://www.nasdaq.com", "Referer": "https://www.nasdaq.com/"}
+            for ac in ("stocks", "etf"):
+                url = ("https://api.nasdaq.com/api/quote/%s/historical?assetclass=%s"
+                       "&limit=%d&fromdate=2024-01-01&todate=2026-12-31" % (c, ac, days))
+                try:
+                    d = json.loads(http_get(url, timeout=12, headers=hdr))
+                    rows = ((d.get("data") or {}).get("tradesTable") or {}).get("rows") or []
+                except Exception:
+                    rows = []
+                if rows:
+                    break
+            for r in reversed(rows):   # 接口按日期倒序 → 反转为时间正序
+                def _num(v):
+                    v = str(v).replace(",", "").replace("$", "").strip()
+                    return float(v)
+                try:
+                    closes.append(_num(r.get("close")))
+                    highs.append(_num(r.get("high")))
+                    vols.append(_num(r.get("volume", "0")))
+                except (TypeError, ValueError):
+                    continue
+    except Exception:
+        return None
+    if not closes:
+        return None
+    out = {"closes": closes, "vols": vols, "highs": highs}
+    _wl_kline_cache[c] = (out, _t.time())
+    return out
+
+def _ma(vals, n):
+    seg = vals[-n:]
+    return sum(seg) / len(seg) if len(seg) == n else None
+
+def _wl_signals(px, k, above, below):
+    """返回 (signals, stats)：signals=[{txt,tone}], stats=ma/52周/量比/多空位置"""
+    sig, st = [], {}
+    if not k or len(k["closes"]) < 5:
+        return sig, st
+    closes, vols = k["closes"], k["vols"]
+    n250 = closes[-250:]
+    hi52, lo52 = max(n250), min(n250)
+    ma5, ma20, ma60 = _ma(closes, 5), _ma(closes, 20), _ma(closes, 60)
+    st = {"ma5": ma5, "ma20": ma20, "ma60": ma60, "hi52": hi52, "lo52": lo52,
+          "pos": ("multi" if (ma60 and px > ma60) else "short") if ma60 else None}
+    if len(closes) >= 21 and ma5 and ma20:
+        ma5p = sum(closes[-6:-1]) / 5
+        ma20p = sum(closes[-21:-1]) / 20
+        if ma5p <= ma20p and ma5 > ma20:
+            sig.append({"txt": "金叉", "tone": "up"})
+        elif ma5p >= ma20p and ma5 < ma20:
+            sig.append({"txt": "死叉", "tone": "down"})
+    if px >= hi52 * 0.995:
+        sig.append({"txt": "52周新高", "tone": "up"})
+    if px <= lo52 * 1.005:
+        sig.append({"txt": "52周新低", "tone": "down"})
+    if len(vols) >= 21:
+        avg20 = sum(vols[-21:-1]) / 20
+        if avg20 and vols[-1] >= avg20 * 2:
+            sig.append({"txt": "放量", "tone": "warn"})
+            st["vol_ratio"] = round(vols[-1] / avg20, 2)
+    if above is not None:
+        sig.append({"txt": ("站稳 %.2f ✓" % above) if px >= above else ("等回踩 %.2f" % above),
+                    "tone": "up" if px >= above else "wait"})
+    if below is not None:
+        sig.append({"txt": ("跌破 %.2f ⚠" % below) if px <= below else ("止损 %.2f" % below),
+                    "tone": "down" if px <= below else "wait"})
+    return sig, st
+
+def _check_watch_alerts(items):
+    """观察池关键位触发 → macOS 通知（每码每方向每日一次）"""
+    import datetime as _dt
+    today = _dt.date.today().isoformat()
+    if _wl_alert_state["date"] != today:
+        _wl_alert_state["date"] = today
+        _wl_alert_state["fired"] = {}
+    for it in items:
+        if it.get("miss") or it.get("price") is None:
+            continue
+        c, px = it["code"], it["price"]
+        for key, label in (("above", "站上"), ("below", "跌破")):
+            lv = it.get(key)
+            if lv is None:
+                continue
+            hit = px >= lv if key == "above" else px <= lv
+            fkey = "%s:%s" % (c, key)
+            if hit and fkey not in _wl_alert_state["fired"]:
+                _wl_alert_state["fired"][fkey] = True
+                _osx_notify("观察池 %s %s 关键位 %.2f｜现价 %.2f" % (c, label, lv, px),
+                            "AssetHub 观察池信号")
+
+def get_watchlist(force=False):
+    """观察池：批量现价 + 盘前盘后价 + MA/52周/量比信号 + 关键位状态。缓存 30s"""
+    def build():
+        try:
+            with open(TEMPLATE) as fp:
+                tpl = json.load(fp)
+        except Exception:
+            tpl = {}
+        items = list(tpl.get("watchlist") or [])
+        if not items:
+            return {"items": [], "ts": datetime.datetime.now().strftime("%H:%M:%S")}
+        codes = [it["code"] for it in items]
+        try:
+            quotes = fetch_quotes(codes)
+        except Exception:
+            quotes = {}
+        us_codes = [c for c in codes if c[:2] not in ("sh", "sz", "bj", "hk")]
+        try:
+            ah = fetch_after_hours(us_codes)
+        except Exception:
+            ah = {}
+        out = []
+        for it in items:
+            c = it["code"]
+            q = quotes.get(c)
+            if not q:
+                out.append({"code": c, "name": it.get("name") or c,
+                            "note": it.get("note"), "miss": True,
+                            "above": it.get("above"), "below": it.get("below")})
+                continue
+            px, chg, sess = q["price"], None, None
+            ahq = ah.get(c)
+            if ahq and ahq.get("price"):
+                px = ahq["price"]
+                chg = ahq.get("pct")
+                sess = ahq.get("session")
+            if chg is None and q.get("prev_close"):
+                chg = (px / q["prev_close"] - 1) * 100
+            k = _wl_daily_kline(c)
+            sig, st = _wl_signals(px, k, it.get("above"), it.get("below"))
+            out.append({
+                "code": c, "name": it.get("name") or q.get("name") or c,
+                "note": it.get("note"),
+                "price": px, "chg_pct": round(chg, 2) if chg is not None else None,
+                "session": sess, "prev_close": q.get("prev_close"),
+                "signals": sig, "stats": st,
+                "above": it.get("above"), "below": it.get("below"),
+            })
+        res = {"items": out, "ts": datetime.datetime.now().strftime("%H:%M:%S")}
+        try:
+            _check_watch_alerts(out)
+        except Exception:
+            pass
+        return res
+    if force:
+        return build()
+    return cache_get("watchlist", 30, build)
+
+def get_stock_detail(code):
+    """个股详情（卡片 K 线图标拉起的浮层）：现价 + 5分钟K线 + BOLL(20,2) + 日线信号。
+    美股分钟线：Nasdaq chart（含盘前，无成交量→量栏隐藏）；A股：腾讯分时（累积量差分→5分钟量）。"""
+    code = norm_code(code)
+    if not code or not re.match(r"^[A-Za-z0-9]{1,12}$", code):
+        return {"error": "bad code"}
+    is_cn = code[:2] in ("sh", "sz", "bj", "hk")
+
+    def build():
+        name, px, chg, prev_close, sess = code, None, None, None, None
+        try:
+            q = fetch_quotes([code])
+            if code in q:
+                name = q[code]["name"]
+                px = q[code]["price"]
+                prev_close = q[code].get("prev_close")
+        except Exception:
+            pass
+        if not is_cn:
+            try:
+                ahq = fetch_after_hours([code]).get(code)
+                if ahq and ahq.get("price"):
+                    px = ahq["price"]
+                    chg = ahq.get("pct")
+                    sess = ahq.get("session")
+            except Exception:
+                pass
+        if chg is None and px and prev_close:
+            chg = (px / prev_close - 1) * 100
+
+        # ---- 分钟序列 ----
+        minutes = []   # {label:"HH:MM", price, vol(增量或None), ts}
+        if is_cn:
+            try:
+                url = ("https://proxy.finance.qq.com/ifzqgtimg/appstock/app/minute/query?code=%s" % code)
+                d = json.loads(http_get(url, timeout=12))
+                rows = (((d.get("data") or {}).get(code) or {}).get("data") or {}).get("data") or []
+                prev_cum = 0.0
+                for r in rows:
+                    f = str(r).split(" ")
+                    if len(f) >= 3 and len(f[0]) >= 4:
+                        try:
+                            minutes.append({"label": f[0][:2] + ":" + f[0][2:4],
+                                            "price": float(f[1]),
+                                            "vol": max(0.0, float(f[2]) - prev_cum)})
+                            prev_cum = float(f[2])
+                        except ValueError:
+                            continue
+            except Exception:
+                pass
+        else:
+            hdr = {"User-Agent": UA, "Accept": "application/json, text/plain, */*",
+                   "Origin": "https://www.nasdaq.com", "Referer": "https://www.nasdaq.com/"}
+            try:
+                import datetime as _dt
+                rows = []
+                for ac in ("stocks", "etf"):
+                    url = ("https://api.nasdaq.com/api/quote/%s/chart?assetclass=%s&type=intraday"
+                           % (code, ac))
+                    d = json.loads(http_get(url, headers=hdr, timeout=12))
+                    rows = (d.get("data") or {}).get("chart") or []
+                    if rows:
+                        break
+                et = _dt.timezone(_dt.timedelta(hours=-4))
+                for r in rows:
+                    try:
+                        ts = int(r.get("x")) / 1000.0
+                        # Nasdaq 的 x 是"美东挂钟时间按 UTC 编码"（04:00 ET 存成 04:00Z），
+                        # 直接取 UTC 挂钟即是美东时间；再按时区换算会多减 4 小时
+                        lt = _dt.datetime.utcfromtimestamp(ts)
+                        minutes.append({"label": lt.strftime("%H:%M"),
+                                        "price": float(r.get("y")), "vol": None, "ts": ts})
+                    except (TypeError, ValueError):
+                        continue
+            except Exception:
+                pass
+
+        # ---- 聚合 5 分钟 K ----
+        buckets, order = {}, []
+        for m in minutes:
+            try:
+                hh, mm = m["label"].split(":")
+                bm = (int(hh) * 60 + int(mm)) // 5 * 5
+            except ValueError:
+                continue
+            key = "%02d:%02d" % (bm // 60, bm % 60)
+            if key not in buckets:
+                buckets[key] = {"o": m["price"], "h": m["price"], "l": m["price"],
+                                "c": m["price"], "v": 0.0, "hasv": False}
+                order.append(key)
+            b = buckets[key]
+            b["h"] = max(b["h"], m["price"])
+            b["l"] = min(b["l"], m["price"])
+            b["c"] = m["price"]
+            if m.get("vol") is not None:
+                b["v"] += m["vol"]
+                b["hasv"] = True
+        k5 = [dict(t=k, **buckets[k]) for k in order]
+
+        # ---- BOLL(20,2) 于 5 分钟收盘价 ----
+        closes = [b["c"] for b in k5]
+        mid, up, lo = [], [], []
+        for i in range(len(closes)):
+            if i < 19:
+                mid.append(None); up.append(None); lo.append(None)
+                continue
+            seg = closes[i - 19:i + 1]
+            m = sum(seg) / 20.0
+            sd = (sum((x - m) ** 2 for x in seg) / 20.0) ** 0.5
+            mid.append(round(m, 4)); up.append(round(m + 2 * sd, 4)); lo.append(round(m - 2 * sd, 4))
+
+        # ---- 日线信号（复用观察池引擎 + 关键位） ----
+        sig, st = [], {}
+        above = below = None
+        try:
+            with open(TEMPLATE) as fp:
+                tpl = json.load(fp)
+            for w in (tpl.get("watchlist") or []):
+                if w.get("code") == code:
+                    above, below = w.get("above"), w.get("below")
+                    break
+        except Exception:
+            pass
+        if px:
+            sig, st = _wl_signals(px, _wl_daily_kline(code), above, below)
+        return {
+            "code": code, "name": name, "price": px,
+            "chg_pct": round(chg, 2) if chg is not None else None,
+            "prev_close": prev_close, "session": sess,
+            "k5": k5, "boll": {"mid": mid, "up": up, "lo": lo},
+            "signals": sig, "stats": st,
+            "above": above, "below": below,
+            "ts": datetime.datetime.now().strftime("%H:%M:%S"),
+        }
+    return cache_get("sd_" + code, 20, build)
+
 # ---------- 重要新闻推送（macOS 系统通知） ----------
 # 重大行情关键词：命中即视为重要新闻（含"持仓相关"的新闻自动重要）
 IMPORTANT_KW = ["暴涨", "暴跌", "大涨", "大跌", "涨停", "跌停", "财报", "业绩", "评级",
@@ -2076,6 +2397,13 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(get_heatmap())
             elif path == "/api/kline":
                 self._json(get_stock_klines())
+            elif path == "/api/watchlist":
+                force = self.path.split("?", 1)[-1] == "force=1"
+                self._json(get_watchlist(force=force))
+            elif path == "/api/stock_detail":
+                from urllib.parse import urlparse as _up2, parse_qs as _pq2
+                q2 = _pq2(_up2(self.path).query)
+                self._json(get_stock_detail((q2.get("code") or [""])[0]))
             elif path == "/api/http_probe":
                 # 排查网络可达性：在 server 进程网络环境下抓取指定 URL，回状态码/长度/片段
                 from urllib.parse import urlparse as _up, parse_qs as _pq
@@ -2339,6 +2667,49 @@ class Handler(BaseHTTPRequestHandler):
                 with _lock:
                     _cache.pop("portfolio", None)
                 self._json({"ok": True, "market": market, "key": key, "cash": amt})
+            elif path == "/api/watchlist":
+                # 添加/更新观察项：{code, note?, above?, below?}；code 已存在则更新 note/关键位
+                length = int(self.headers.get("Content-Length", 0))
+                body = json.loads(self.rfile.read(length).decode("utf-8"))
+                code = norm_code(body.get("code"))
+                if not code or not re.match(r"^[A-Za-z0-9]{1,12}$", code):
+                    self._json({"error": "代码格式无效（如 BNO 或 sh600584）"}, 400)
+                    return
+                note = body.get("note")
+                above = body.get("above")
+                below = body.get("below")
+                try:
+                    above = round(float(above), 4) if above not in (None, "") else None
+                    below = round(float(below), 4) if below not in (None, "") else None
+                except (TypeError, ValueError):
+                    self._json({"error": "关键位格式无效"}, 400)
+                    return
+                with open(TEMPLATE) as fp:
+                    tpl = json.load(fp)
+                wl = tpl.setdefault("watchlist", [])
+                item = None
+                for w in wl:
+                    if w.get("code") == code:
+                        item = w
+                        break
+                if item is None:
+                    name = code
+                    try:
+                        q = fetch_quotes([code])
+                        if code in q:
+                            name = q[code]["name"]
+                    except Exception:
+                        pass
+                    item = {"code": code, "name": name}
+                    wl.append(item)
+                if note is not None:
+                    item["note"] = str(note)[:120]
+                item["above"] = above
+                item["below"] = below
+                with open(TEMPLATE, "w") as fp:
+                    json.dump(tpl, fp, ensure_ascii=False, indent=2)
+                _cache.pop("watchlist", None)
+                self._json({"ok": True, "item": item})
             else:
                 self._json({"error": "not found"}, 404)
         except Exception as e:
@@ -2371,6 +2742,21 @@ class Handler(BaseHTTPRequestHandler):
                     json.dump(tpl, fp, ensure_ascii=False, indent=2)
                 with _lock:
                     _cache.pop("portfolio", None)
+                self._json({"ok": True, "code": code})
+            elif path == "/api/watchlist":
+                from urllib.parse import urlparse, parse_qs
+                q = parse_qs(urlparse(self.path).query)
+                code = norm_code((q.get("code") or [""])[0])
+                if not code:
+                    self._json({"error": "missing code"}, 400)
+                    return
+                with open(TEMPLATE) as fp:
+                    tpl = json.load(fp)
+                wl = tpl.get("watchlist") or []
+                tpl["watchlist"] = [w for w in wl if w.get("code") != code]
+                with open(TEMPLATE, "w") as fp:
+                    json.dump(tpl, fp, ensure_ascii=False, indent=2)
+                _cache.pop("watchlist", None)
                 self._json({"ok": True, "code": code})
             else:
                 self._json({"error": "not found"}, 404)
