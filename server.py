@@ -224,6 +224,32 @@ def session_of(ts_str, fallback_now=None):
 # Nasdaq 扩展时段后台缓存：{ticker: data, "ts": 更新时间}
 _nasdaq_cache = {}
 
+# ---------- 夜盘（Blue Ocean BOATS）报价 ----------
+# 免费公开源（新浪/腾讯/Nasdaq 官方）在 ET 20:00 后全部停更，只有 Yahoo 等
+# 带 BOATS 实时价的站点有真夜盘价（本机 403 抓不到）→ 由定时自动化任务经
+# WebFetch 抓取后 POST 到 /api/night_quotes 落盘，服务端夜盘时段优先采用。
+NIGHT_FILE = os.path.join(ROOT, "data", "night_quotes.json")
+_night_quotes = {}
+
+def _load_night_quotes():
+    global _night_quotes
+    try:
+        with open(NIGHT_FILE) as fp:
+            _night_quotes = json.load(fp) or {}
+    except Exception:
+        _night_quotes = {}
+
+def _save_night_quotes():
+    try:
+        tmp = NIGHT_FILE + ".tmp"
+        with open(tmp, "w") as fp:
+            json.dump(_night_quotes, fp, ensure_ascii=False, indent=2)
+        os.replace(tmp, NIGHT_FILE)
+    except Exception:
+        pass
+
+_load_night_quotes()
+
 def _fetch_sina_after_hours(us):
     """新浪 gb_ 接口（1 次批量请求，快）：盘前 f1 / 盘后 f21"""
     out = {}
@@ -526,6 +552,23 @@ def get_portfolio(force=False):
                                 sess = {"key": "after", "text": "盘后", "icon": ""}
                             else:
                                 sess = {"key": "night", "text": "夜盘", "icon": ""}
+                    # 夜盘时段（ET 20:00-4:00）：新浪/Nasdaq 盘后价已冻结，
+                    # 优先用自动化任务写入的 BOATS 夜盘价（10h 内有效；
+                    # 偏离盘后价 >20% 视为脏数据丢弃）
+                    nq = _night_quotes.get(c)
+                    if not (in_pre or in_regular or in_after) \
+                            and nq and float(nq.get("price") or 0) > 0:
+                        _fresh = False
+                        try:
+                            _age = datetime.datetime.now() - datetime.datetime.strptime(
+                                nq.get("updated", ""), "%Y-%m-%d %H:%M")
+                            _fresh = _age.total_seconds() < 10 * 3600
+                        except ValueError:
+                            pass
+                        if _fresh and abs(nq["price"] - price) / price < 0.2:
+                            price = float(nq["price"])
+                            tss = nq.get("ts") or tss   # 夜盘时间优先作为总览 as_of
+                            sess = {"key": "night", "text": "夜盘", "icon": ""}
                     # 闭市时段(20:00-4:00)标签统一显示"夜盘"（价格仍为最新盘后/扩展价）
                     if not (in_pre or in_regular or in_after):
                         sess = {"key": "night", "text": "夜盘", "icon": ""}
@@ -2400,6 +2443,8 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/watchlist":
                 force = self.path.split("?", 1)[-1] == "force=1"
                 self._json(get_watchlist(force=force))
+            elif path == "/api/night_quotes":
+                self._json({"quotes": _night_quotes})
             elif path == "/api/stock_detail":
                 from urllib.parse import urlparse as _up2, parse_qs as _pq2
                 q2 = _pq2(_up2(self.path).query)
@@ -2483,6 +2528,35 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if not self._require_auth():
                 return
+            if path == "/api/night_quotes":
+                # 自动化任务写入夜盘（BOATS）价：{quotes:[{code,price,ts}]}
+                length = int(self.headers.get("Content-Length", 0))
+                body = json.loads(self.rfile.read(length).decode("utf-8"))
+                items = body.get("quotes") or []
+                if not isinstance(items, list):
+                    self._json({"error": "quotes 必须是数组"}, 400)
+                    return
+                saved, skipped = [], []
+                for it in items:
+                    code = str(it.get("code") or "").strip().upper()
+                    try:
+                        price = float(it.get("price") or 0)
+                    except (TypeError, ValueError):
+                        price = 0
+                    if not re.match(r"^[A-Z]{1,8}$", code) or price <= 0:
+                        skipped.append(code)
+                        continue
+                    _night_quotes[code] = {
+                        "price": round(price, 4),
+                        "chg": float(it.get("chg") or 0),
+                        "pct": float(it.get("pct") or 0),
+                        "ts": str(it.get("ts") or "")[:40],
+                        "updated": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    }
+                    saved.append(code)
+                if saved:
+                    _save_night_quotes()
+                self._json({"ok": True, "saved": saved, "skipped": skipped})
             if path == "/api/stock":
                 length = int(self.headers.get("Content-Length", 0))
                 body = json.loads(self.rfile.read(length).decode("utf-8"))
