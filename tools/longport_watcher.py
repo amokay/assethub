@@ -111,12 +111,15 @@ def poll_once(ctx):
             continue
         code = q.symbol.split(".")[0]
         price = float(on.last_done)
-        prev = float(q.prev_close or 0) or None   # 夜盘涨跌相对正规时段前收盘
+        # 涨跌基准 = 最近一次正规时段收盘（美东 20:00 起算新的一天，如周四 16:00 收盘）。
+        # 实测(2026-10-09)：overnight_quote.prev_close 才是这个基准(NVDA=230.48)；
+        # q.prev_close 在夜盘时段仍是前一交易日的昨收(NVDA=237.47)，会差一个交易日。
+        prev = float(on.prev_close or 0) or float(q.last_done or 0) or None
         chg = round(price - prev, 4) if prev else 0.0
         pct = round(chg / prev * 100, 2) if prev else 0.0
         et = ts.astimezone(ET)
         out.append({
-            "code": code, "price": round(price, 4),
+            "code": code, "price": round(price, 4), "prev": round(prev, 4) if prev else None,
             "chg": chg, "pct": pct,
             "ts": et.strftime("%b %d %I:%M%p EDT"),
             "bar_t": et.strftime("%H:%M"),

@@ -548,37 +548,55 @@ def get_portfolio(force=False):
                         if ah0 and ah0.get("prev"):
                             prev_close = ah0["prev"]
                     sess = session_of(q["ts"])
+                    # 夜盘落库数据（watcher 30s 实时写入）：价格 + 涨跌基准（最近正规收盘）
+                    nq = _night_quotes.get(c)
+                    nq_price = float((nq or {}).get("price") or 0)
+                    nq_prev = float((nq or {}).get("prev") or 0)
+                    nq_fresh = False
+                    if nq:
+                        try:
+                            _age = datetime.datetime.now() - datetime.datetime.strptime(
+                                nq.get("updated", ""), "%Y-%m-%d %H:%M")
+                            nq_fresh = _age.total_seconds() < 10 * 3600
+                        except ValueError:
+                            pass
+                    # 涨跌基准（美东 20:00 起算一天，全天基准 = 起点前最近一次正规收盘）：
+                    # 夜盘/盘前/盘后时段统一用 watcher 落库的基准，
+                    # 腾讯 f4 与扩展源 prev 在这些时段可能停在上一交易日
+                    if not in_regular and nq_fresh and nq_prev > 0:
+                        prev_close = nq_prev
                     # 美股扩展时段：盘中用腾讯实时；盘前/盘后/夜盘(闭市)用 Nasdaq 官方
                     # （或新浪）扩展时段最新价（如财报后盘后大涨，夜盘时段持续显示该价）
                     if not in_regular and c in after_hours:
                         ah = after_hours[c]
                         if ah["price"] > 0 and abs(ah["price"] - price) / price < 0.3:
-                            price = ah["price"]
-                            tss = tss or ah.get("ts") or q["ts"]   # as_of 用扩展时段实际数据时间
                             sess_key = ah.get("session", "post")
-                            if sess_key == "pre":
-                                sess = {"key": "pre", "text": "盘前", "icon": ""}
-                            elif sess_key == "post":
-                                sess = {"key": "after", "text": "盘后", "icon": ""}
-                            else:
+                            # 盘前无真实成交（扩展源冻结在收盘附近，或仍是昨日盘后价）：
+                            # 沿用夜盘最后一笔 = 本交易日的最新价（美东 20:00 起算一天）
+                            _ah_real = sess_key == "pre" and \
+                                abs(ah["price"] - price) / price >= 0.0005
+                            if in_pre and not _ah_real and nq_fresh and nq_price > 0:
+                                price = nq_price
+                                tss = nq.get("ts") or tss
                                 sess = {"key": "night", "text": "夜盘", "icon": ""}
+                            else:
+                                price = ah["price"]
+                                tss = tss or ah.get("ts") or q["ts"]   # as_of 用扩展时段实际数据时间
+                                if sess_key == "pre":
+                                    sess = {"key": "pre", "text": "盘前", "icon": ""}
+                                elif sess_key == "post":
+                                    sess = {"key": "after", "text": "盘后", "icon": ""}
+                                else:
+                                    sess = {"key": "night", "text": "夜盘", "icon": ""}
                     # 夜盘时段（ET 20:00-4:00）：新浪/Nasdaq 盘后价已冻结，
-                    # 优先用自动化任务写入的 BOATS 夜盘价（10h 内有效；
-                    # 偏离盘后价 >20% 视为脏数据丢弃）
-                    nq = _night_quotes.get(c)
+                    # 优先用 watcher 写入的 BOATS 夜盘实时价（10h 内有效；
+                    # 偏离 >20% 视为脏数据丢弃）
                     if not (in_pre or in_regular or in_after) \
-                            and nq and float(nq.get("price") or 0) > 0:
-                        _fresh = False
-                        try:
-                            _age = datetime.datetime.now() - datetime.datetime.strptime(
-                                nq.get("updated", ""), "%Y-%m-%d %H:%M")
-                            _fresh = _age.total_seconds() < 10 * 3600
-                        except ValueError:
-                            pass
-                        if _fresh and abs(nq["price"] - price) / price < 0.2:
-                            price = float(nq["price"])
-                            tss = nq.get("ts") or tss   # 夜盘时间优先作为总览 as_of
-                            sess = {"key": "night", "text": "夜盘", "icon": ""}
+                            and nq_fresh and nq_price > 0 \
+                            and abs(nq_price - price) / price < 0.2:
+                        price = nq_price
+                        tss = nq.get("ts") or tss   # 夜盘时间优先作为总览 as_of
+                        sess = {"key": "night", "text": "夜盘", "icon": ""}
                     # 闭市时段(20:00-4:00)标签统一显示"夜盘"（价格仍为最新盘后/扩展价）
                     if not (in_pre or in_regular or in_after):
                         sess = {"key": "night", "text": "夜盘", "icon": ""}
@@ -1900,18 +1918,30 @@ def get_stock_detail(code):
                     sess = ahq.get("session")
             except Exception:
                 pass
-            # 夜盘时段：优先用自动化任务写入的 BOATS 夜盘价（10h 内有效，
-            # 偏离 >20% 视为脏数据丢弃），否则会一直显示冻结的盘后收盘价
+            # 夜盘落库价：仅非盘中时段采用（盘中以实时价为准，
+            # 否则冻结的夜盘价会盖掉盘中实时行情）
             nq = _night_quotes.get(code)
-            if nq and float(nq.get("price") or 0) > 0 and px:
+            _now_et = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=4)
+            _et_t, _et_wd = _now_et.time(), _now_et.weekday()
+            _in_reg = _et_wd < 5 and datetime.time(9, 30) <= _et_t < datetime.time(16, 0)
+            _in_pre = _et_wd < 5 and datetime.time(4, 0) <= _et_t < datetime.time(9, 30)
+            if nq and float(nq.get("price") or 0) > 0 and px and not _in_reg:
                 try:
                     _age = datetime.datetime.now() - datetime.datetime.strptime(
                         nq.get("updated", ""), "%Y-%m-%d %H:%M")
                     if _age.total_seconds() < 10 * 3600 \
                             and abs(nq["price"] - px) / px < 0.2:
-                        px = float(nq["price"])
-                        chg = nq.get("pct")
-                        sess = "night"
+                        # 盘前扩展源有真实成交（价格偏离昨收）时以盘前价为准
+                        _ah_real = _in_pre and sess == "pre" and prev_close and \
+                            abs(px - prev_close) / prev_close >= 0.0005
+                        if not _ah_real:
+                            px = float(nq["price"])
+                            chg = nq.get("pct") or None
+                            # 夜盘基准 = 最近正规收盘（美东 20:00 起算一天）
+                            if float(nq.get("prev") or 0) > 0:
+                                prev_close = float(nq["prev"])
+                                chg = chg or (px / prev_close - 1) * 100
+                            sess = "night"
                 except ValueError:
                     pass
         if chg is None and px and prev_close:
@@ -2583,6 +2613,7 @@ class Handler(BaseHTTPRequestHandler):
                         continue
                     _night_quotes[code] = {
                         "price": round(price, 4),
+                        "prev": float(it.get("prev") or 0),   # 涨跌基准=最近正规收盘
                         "chg": float(it.get("chg") or 0),
                         "pct": float(it.get("pct") or 0),
                         "ts": str(it.get("ts") or "")[:40],
