@@ -14,7 +14,10 @@ SDK 侧：http_url=https://openapi.longportapp.com:8443
         quote_ws_url=wss://openapi-quote.longportapp.com:8443/v2
 """
 import asyncio
+import json
 import sys
+import time
+import urllib.request
 
 PROXY_HOST, PROXY_PORT = "127.0.0.1", 7897
 LISTEN_PORT = 8443
@@ -23,6 +26,52 @@ ROUTES = {
     "openapi.longportapp.com": 443,
     "openapi-quote.longportapp.com": 443,
 }
+
+# 机场出口的 DNS 对长桥域名被污染（解析到 nigirocloud 等假站），
+# 本地国内 DNS 也被污染（返回 Facebook/Dropbox 段）。因此这里用
+# DoH（经 Clash 走境外解析）拿真实 IP，CONNECT 时直接用 IP 而非域名，
+# SNI 仍由 ClientHello 保留——CDN 按 SNI 路由，证书校验正常。
+DOH_URL = "https://cloudflare-dns.com/dns-query?name={host}&type=A"
+DOH_REFRESH = 300          # 每 5 分钟刷新一次 IP 缓存
+DNS_CACHE: dict = {}       # host -> {"ip": str, "ts": float}
+# 兜底 IP（DoH 全挂时用；AWS ap-east-1，2026-10-09 实测）
+STATIC_IPS = {
+    "openapi.longportapp.com": "16.163.3.254",
+    "openapi-quote.longportapp.com": "16.163.3.254",
+}
+
+
+def doh_resolve(host: str):
+    """经 Clash 代理用 Cloudflare DoH 解析域名，返回 A 记录列表。"""
+    url = DOH_URL.format(host=host)
+    opener = urllib.request.build_opener(
+        urllib.request.ProxyHandler({"http": f"http://{PROXY_HOST}:{PROXY_PORT}",
+                                     "https": f"http://{PROXY_HOST}:{PROXY_PORT}"}))
+    req = urllib.request.Request(url, headers={"accept": "application/dns-json"})
+    with opener.open(req, timeout=10) as r:
+        data = json.loads(r.read().decode())
+    return [a["data"] for a in data.get("Answer", []) if a.get("type") == 1]
+
+
+async def resolve_ip(host: str) -> str:
+    """取 host 的真实 IP：缓存(5min) → DoH → 静态兜底。"""
+    ent = DNS_CACHE.get(host)
+    if ent and time.time() - ent["ts"] < DOH_REFRESH:
+        return ent["ip"]
+    loop = asyncio.get_running_loop()
+    try:
+        ips = await loop.run_in_executor(None, doh_resolve, host)
+        if ips:
+            DNS_CACHE[host] = {"ip": ips[0], "ts": time.time()}
+            print(f"[dns] {host} -> {ips[0]} (of {ips})", flush=True)
+            return ips[0]
+    except Exception as e:
+        print(f"[dns] {host} DoH failed: {e}", flush=True)
+    ip = STATIC_IPS.get(host)
+    if ip:
+        print(f"[dns] {host} -> fallback {ip}", flush=True)
+        return ip
+    return host   # 最后回退域名（让代理自己解析）
 
 
 def parse_sni(buf: bytes):
@@ -80,8 +129,9 @@ async def splice(r: asyncio.StreamReader, w: asyncio.StreamWriter, tag: str, sni
 
 
 async def tunnel(host, port):
+    ip = await resolve_ip(host)
     pw_r, pw_w = await asyncio.open_connection(PROXY_HOST, PROXY_PORT)
-    pw_w.write((f"CONNECT {host}:{port} HTTP/1.1\r\n"
+    pw_w.write((f"CONNECT {ip}:{port} HTTP/1.1\r\n"
                 f"Host: {host}:{port}\r\n\r\n").encode())
     await pw_w.drain()
     status = await pw_r.readline()

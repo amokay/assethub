@@ -10,7 +10,7 @@
     127.0.0.1 openapi.longportapp.com
     127.0.0.1 openapi-quote.longportapp.com
 
-职责：每 POLL_INTERVAL 秒拉一次持仓全量报价，夜盘时段取 over_night_quote
+职责：每 POLL_INTERVAL 秒拉一次持仓全量报价，夜盘时段取 overnight_quote
 写入 AssetHub /api/night_quotes（10h 新鲜度，服务端夜盘时段优先采用）。
 Clash 节点漂移时连接会失败 → 指数退避重试 + QuoteContext 自动重建。
 """
@@ -88,23 +88,30 @@ def make_ctx():
 
 
 def poll_once(ctx):
-    """拉一轮报价；有新鲜夜盘价则 POST，返回 True 表示正常。"""
+    """拉一轮报价；有新鲜夜盘价则 POST，返回 True 表示正常。
+
+    注意（实测确认）：
+    - 字段名是 q.overnight_quote（不是 over_night_quote）。
+    - SDK 返回的 timestamp 是【本机时区裸时间】（北京机器即北京时间）：
+      NVDA 常规收盘 ts=04:00:00（=ET 16:00 收盘），overnight ts=15:43（=ET 03:43）。
+      先按本地时区补 tzinfo，再换算 ET。
+    """
     syms = [f"{c}.US" for c in SYMBOLS]
     quotes = ctx.quote(syms)
     out = []
     now = time.time()
     for q in quotes:
-        on = getattr(q, "over_night_quote", None)
+        on = getattr(q, "overnight_quote", None)
         if not on or not on.last_done:
             continue
         ts = on.timestamp
         if ts.tzinfo is None:
-            ts = ts.replace(tzinfo=timezone.utc)
+            ts = ts.astimezone()          # 裸时间按本机时区（北京 +8）补齐
         if now - ts.timestamp() > FRESH_SEC:
             continue
         code = q.symbol.split(".")[0]
         price = float(on.last_done)
-        prev = float(on.prev_close or 0) or None
+        prev = float(q.prev_close or 0) or None   # 夜盘涨跌相对正规时段前收盘
         chg = round(price - prev, 4) if prev else 0.0
         pct = round(chg / prev * 100, 2) if prev else 0.0
         et = ts.astimezone(ET)
@@ -139,6 +146,7 @@ def main():
         except Exception as e:
             log(f"error: {str(e)[:160]} -> rebuild in {backoff}s")
             ctx = None            # 下一轮重建连接
+            start_relay()         # relay 进程若已死则补种（端口占用时自动跳过）
             time.sleep(backoff)
             backoff = min(backoff * 2, RETRY_MAX)
 
