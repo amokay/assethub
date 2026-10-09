@@ -395,6 +395,8 @@
   .summary-card .label .lbl-act { margin-left: 5px; display: inline-flex;
                                   align-items: center; height: 0; overflow: visible; }
   .summary-card .value { font-size: clamp(20px, 2.6vw, 30px); font-weight: 700; }
+  /* 总资产大数字的小数部分：缩小、变细、微降不透明度，突出整数主体 */
+  .summary-card .value .dec { font-size: .62em; font-weight: 500; opacity: .72; }
   .summary-card .value.sm { font-size: clamp(15px, 2.1vw, 22px); }
   .summary-card .hint { color: var(--muted); font-size: 11.5px; margin-top: 5px; }
   /* 总资产数字后的隐私眼睛：与数字垂直居中、置于数字右侧（不再放标题区） */
@@ -983,6 +985,12 @@ const fmt = v => v.toLocaleString('en-US', {minimumFractionDigits: v % 1 === 0 ?
 const fmt3 = v => v.toLocaleString('en-US', {minimumFractionDigits: v % 1 === 0 ? 0 : 3, maximumFractionDigits: 3});  // A股价格：精确到 3 位
 const fmtMoney = v => (v < 0 ? '-' : '') + '$' + fmt(Math.abs(v));
 const fmtMoneyS = v => (v < 0 ? '-' : '+') + '$' + fmt(Math.abs(v));
+const fmtBig = (sym, v) => {   // 总资产大数字：小数部分包 .dec（缩小变细）
+  const s = fmt(Math.abs(v));
+  const i = s.indexOf('.');
+  return (v < 0 ? '-' : '') + sym +
+    (i < 0 ? s : s.slice(0, i) + '<span class="dec">' + s.slice(i) + '</span>');
+};
 const fmtNoSym = v => (v < 0 ? '-' : '') + fmt(Math.abs(v));       // 无货币符号（股票卡片用）
 const fmtNoSymS = v => (v < 0 ? '-' : '+') + fmt(Math.abs(v));
 const fmtPct = v => (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
@@ -1141,7 +1149,7 @@ function renderSummaryCn(t) {
   $('summary-cn').innerHTML = `
     <div class="summary-card pop-in">
       <div class="label"><span class="lbl-txt">${_t('total_assets')}</span><span class="lbl-act">${hmEntryBtn()}</span></div>
-      <div class="value">${val(fmtCny(t.mv))} ${privacyEye()}</div>
+      <div class="value">${val(fmtBig('¥', t.mv))} ${privacyEye()}</div>
       <div class="hint">${val('≈ $' + fmt(Math.round(t.mv / portfolio.rate)))}</div>
     </div>
     <div class="summary-card pop-in">
@@ -1219,7 +1227,7 @@ function renderSummary(t, rate) {
   $('summary').innerHTML = `
     <div class="summary-card pop-in">
       <div class="label"><span class="lbl-txt">${_t('total_assets')}</span><span class="lbl-act">${hmEntryBtn()}</span></div>
-      <div class="value">${val(fmtMoney(t.mv))} ${privacyEye()}</div>
+      <div class="value">${val(fmtBig('$', t.mv))} ${privacyEye()}</div>
       <div class="hint">${val('≈ ¥' + Math.round(t.mv_cny).toLocaleString())}</div>
     </div>
     <div class="summary-card pop-in">
