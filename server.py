@@ -520,8 +520,11 @@ def get_portfolio(force=False):
             t = now_bj.time()
             am = datetime.time(9, 30) <= t < datetime.time(11, 30)
             pm = datetime.time(13, 0) <= t < datetime.time(15, 0)
-            return {"key": "regular", "text": "盘中", "icon": ""} if (am or pm) \
-                else {"key": "closed", "text": "已收盘", "icon": ""}
+            if am or pm:
+                return {"key": "regular", "text": "盘中", "icon": ""}
+            if datetime.time(11, 30) <= t < datetime.time(13, 0):
+                return {"key": "lunch", "text": "午间休市", "icon": ""}
+            return {"key": "closed", "text": "已收盘", "icon": ""}
 
         def build_stocks(agg, order):
             stocks, mv, cost, dpnl, tss = [], 0.0, 0.0, 0.0, ""
