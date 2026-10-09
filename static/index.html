@@ -1480,7 +1480,7 @@ function renderFrames(meta) {
           <div class="card front">
             <div class="top"></div>
             <div class="code">${s.code}</div>
-            <div class="name">${stkName(s)}</div>
+            <div class="name">${stkName(s)}${sdBtn(s.code)}</div>
             <div class="price" data-flip="${s.code}" data-px="--" style="color:var(--muted)">--</div>
             <div class="change"><span class="session">${_t('loading')}</span></div>
             <div class="front-kline" data-kline="${s.code}"></div>

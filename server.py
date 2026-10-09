@@ -267,9 +267,16 @@ def _fetch_sina_after_hours(us):
                 continue
             try:
                 # 新浪 f21：盘前时段(ET 4:00-9:30)是盘前价，盘后/深夜是盘后价 → 按时段标 session
+                # 深夜(ET 20:00-04:00) f21 是冻结的盘后价，标 night（避免被当成"盘前"）
                 import datetime as _dt
                 et = _dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(hours=4)
-                f21_sess = "pre" if et.time() < _dt.time(9, 30) else "post"
+                t_et = et.time()
+                if _dt.time(4, 0) <= t_et < _dt.time(9, 30):
+                    f21_sess = "pre"
+                elif _dt.time(9, 30) <= t_et < _dt.time(20, 0):
+                    f21_sess = "post"
+                else:
+                    f21_sess = "night"
                 after_price = float(f[21]) if f[21] else 0.0
                 if after_price > 0:
                     # prev = 新浪现价 f1（最近交易日收盘）：新浪盘前/盘后涨跌正是相对它算的。
@@ -1890,6 +1897,20 @@ def get_stock_detail(code):
                     sess = ahq.get("session")
             except Exception:
                 pass
+            # 夜盘时段：优先用自动化任务写入的 BOATS 夜盘价（10h 内有效，
+            # 偏离 >20% 视为脏数据丢弃），否则会一直显示冻结的盘后收盘价
+            nq = _night_quotes.get(code)
+            if nq and float(nq.get("price") or 0) > 0 and px:
+                try:
+                    _age = datetime.datetime.now() - datetime.datetime.strptime(
+                        nq.get("updated", ""), "%Y-%m-%d %H:%M")
+                    if _age.total_seconds() < 10 * 3600 \
+                            and abs(nq["price"] - px) / px < 0.2:
+                        px = float(nq["price"])
+                        chg = nq.get("pct")
+                        sess = "night"
+                except ValueError:
+                    pass
         if chg is None and px and prev_close:
             chg = (px / prev_close - 1) * 100
 
@@ -1936,6 +1957,17 @@ def get_stock_detail(code):
                         minutes.append({"label": lt.strftime("%H:%M"),
                                         "price": float(r.get("y")), "vol": None, "ts": ts})
                     except (TypeError, ValueError):
+                        continue
+                # 夜盘段（ET 20:00-04:00）：Nasdaq/Yahoo 分时都不含 BOATS 隔夜成交，
+                # 把自动化任务每小时抓的夜盘快照拼到盘后之后（无成交量，顺序即时间序）
+                for bar in ((_night_quotes.get(code) or {}).get("bars") or []):
+                    try:
+                        _age = datetime.datetime.now() - datetime.datetime.strptime(
+                            bar.get("at", ""), "%Y-%m-%d %H:%M")
+                        if _age.total_seconds() < 10 * 3600:
+                            minutes.append({"label": bar["t"],
+                                            "price": float(bar["price"]), "vol": None})
+                    except ValueError:
                         continue
             except Exception:
                 pass
@@ -2553,6 +2585,24 @@ class Handler(BaseHTTPRequestHandler):
                         "ts": str(it.get("ts") or "")[:40],
                         "updated": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
                     }
+                    # 夜盘散点（供个股详情 5分K 拼接夜盘段）：同时间点去重，保留 10h 内、最多 24 点
+                    bar_t = str(it.get("bar_t") or "")[:5]
+                    if re.match(r"^\d{2}:\d{2}$", bar_t):
+                        bars = _night_quotes[code].setdefault("bars", [])
+                        now_s = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+                        if not bars or bars[-1].get("t") != bar_t:
+                            bars.append({"t": bar_t, "price": round(price, 4), "at": now_s})
+                        else:
+                            bars[-1]["price"] = round(price, 4)
+                            bars[-1]["at"] = now_s
+                        def _bar_fresh(b):
+                            try:
+                                return (datetime.datetime.now() -
+                                        datetime.datetime.strptime(b["at"], "%Y-%m-%d %H:%M")
+                                        ).total_seconds() < 10 * 3600
+                            except ValueError:
+                                return False
+                        _night_quotes[code]["bars"] = [b for b in bars if _bar_fresh(b)][-24:]
                     saved.append(code)
                 if saved:
                     _save_night_quotes()
