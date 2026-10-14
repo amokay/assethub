@@ -2611,6 +2611,9 @@ class Handler(BaseHTTPRequestHandler):
                     if not re.match(r"^[A-Z]{1,8}$", code) or price <= 0:
                         skipped.append(code)
                         continue
+                    # 整体替换时必须带上旧 bars（否则每轮 POST 散点清零重写，
+                    # 夜盘 K 线段只剩孤立一个跳点 —— 2026-10-14 修）
+                    _old_bars = (_night_quotes.get(code) or {}).get("bars") or []
                     _night_quotes[code] = {
                         "price": round(price, 4),
                         "prev": float(it.get("prev") or 0),   # 涨跌基准=最近正规收盘
@@ -2618,8 +2621,10 @@ class Handler(BaseHTTPRequestHandler):
                         "pct": float(it.get("pct") or 0),
                         "ts": str(it.get("ts") or "")[:40],
                         "updated": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+                        "bars": _old_bars,
                     }
-                    # 夜盘散点（供个股详情 5分K 拼接夜盘段）：同时间点去重，保留 10h 内、最多 24 点
+                    # 夜盘散点（供个股详情分钟K 拼接夜盘段）：同时间点去重，
+                    # 保留 10h 内、最多 240 点（≈覆盖整段夜盘）
                     bar_t = str(it.get("bar_t") or "")[:5]
                     if re.match(r"^\d{2}:\d{2}$", bar_t):
                         bars = _night_quotes[code].setdefault("bars", [])
@@ -2636,7 +2641,7 @@ class Handler(BaseHTTPRequestHandler):
                                         ).total_seconds() < 10 * 3600
                             except ValueError:
                                 return False
-                        _night_quotes[code]["bars"] = [b for b in bars if _bar_fresh(b)][-24:]
+                        _night_quotes[code]["bars"] = [b for b in bars if _bar_fresh(b)][-240:]
                     saved.append(code)
                 if saved:
                     _save_night_quotes()
