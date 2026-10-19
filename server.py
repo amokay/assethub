@@ -552,6 +552,7 @@ def get_portfolio(force=False):
                     nq = _night_quotes.get(c)
                     nq_price = float((nq or {}).get("price") or 0)
                     nq_prev = float((nq or {}).get("prev") or 0)
+                    nq_chg = float((nq or {}).get("chg") or 0)
                     nq_fresh = False
                     if nq:
                         try:
@@ -563,8 +564,13 @@ def get_portfolio(force=False):
                     # 涨跌基准（美东 20:00 起算一天，全天基准 = 起点前最近一次正规收盘）：
                     # 夜盘/盘前/盘后时段统一用 watcher 落库的基准，
                     # 腾讯 f4 与扩展源 prev 在这些时段可能停在上一交易日
-                    if not in_regular and nq_fresh and nq_prev > 0:
-                        prev_close = nq_prev
+                    # （NTAP 2026-10-16 大跌 5% 后，周末腾讯 f4 仍停在周四收盘）。
+                    # prev 缺失（如 Yahoo 兜底自动化 POST 不带 prev）时按其算好的 chg 反推。
+                    if not in_regular and nq_fresh:
+                        if nq_prev > 0:
+                            prev_close = nq_prev
+                        elif nq_chg and nq_price > 0:
+                            prev_close = nq_price - nq_chg
                     # 美股扩展时段：盘中用腾讯实时；盘前/盘后/夜盘(闭市)用 Nasdaq 官方
                     # （或新浪）扩展时段最新价（如财报后盘后大涨，夜盘时段持续显示该价）
                     if not in_regular and c in after_hours:
@@ -918,6 +924,16 @@ def fetch_us_fund_nav(fund, force=False):
         nav, date = _scrape_ft_fund_nav(isin)
     if nav is None:
         return (cached[1], cached[2]) if cached else (None, None)
+    # 防回退：上游源(FT 等)更新常比官网滞后 1 天，若抓到的净值日期早于本地 nav_hist
+    # 里已有的最新日期，沿用本地较新的那条，避免把已写入的新净值覆盖回旧值。
+    try:
+        hist = fund.get("nav_hist") or {}
+        if hist and date:
+            latest = max(hist.keys())
+            if date < latest:
+                return float(hist[latest]), latest
+    except Exception:
+        pass
     with _lock:
         _cache[key] = (time.time(), nav, date)
     return nav, date
@@ -1937,9 +1953,13 @@ def get_stock_detail(code):
                         if not _ah_real:
                             px = float(nq["price"])
                             chg = nq.get("pct") or None
-                            # 夜盘基准 = 最近正规收盘（美东 20:00 起算一天）
+                            # 夜盘基准 = 最近正规收盘（美东 20:00 起算一天）；
+                            # prev 缺失时按落库的 chg（绝对差）反推
                             if float(nq.get("prev") or 0) > 0:
                                 prev_close = float(nq["prev"])
+                                chg = chg or (px / prev_close - 1) * 100
+                            elif float(nq.get("chg") or 0):
+                                prev_close = px - float(nq["chg"])
                                 chg = chg or (px / prev_close - 1) * 100
                             sess = "night"
                 except ValueError:
