@@ -2633,10 +2633,15 @@ class Handler(BaseHTTPRequestHandler):
                         continue
                     # 整体替换时必须带上旧 bars（否则每轮 POST 散点清零重写，
                     # 夜盘 K 线段只剩孤立一个跳点 —— 2026-10-14 修）
-                    _old_bars = (_night_quotes.get(code) or {}).get("bars") or []
+                    _old = _night_quotes.get(code) or {}
+                    _old_bars = _old.get("bars") or []
+                    # 涨跌基准（=最近正规收盘）：watcher 会带 prev；若本次 POST 缺 prev
+                    # （如 Yahoo 兜底自动化）保留已有正确基准，避免被陈旧价覆盖成错基准
+                    _new_prev = float(it.get("prev") or 0)
+                    _prev = _new_prev or float(_old.get("prev") or 0)
                     _night_quotes[code] = {
                         "price": round(price, 4),
-                        "prev": float(it.get("prev") or 0),   # 涨跌基准=最近正规收盘
+                        "prev": _prev,   # 涨跌基准=最近正规收盘
                         "chg": float(it.get("chg") or 0),
                         "pct": float(it.get("pct") or 0),
                         "ts": str(it.get("ts") or "")[:40],
